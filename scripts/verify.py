@@ -27,6 +27,14 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 CONFIG = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
+
+# Korean output must not depend on the console codepage (cp949 on Windows
+# raises UnicodeEncodeError on an em dash and kills the run).
+for _s in (sys.stdout, sys.stderr):
+    try:
+        _s.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
 KST = dt.timezone(dt.timedelta(hours=9))
 
 REQUIRED_FIELDS = ("id", "title", "channel", "views", "timestamp", "url")
@@ -99,6 +107,26 @@ def check(report):
         )
     if items and not any(i.get("brand") for i in items):
         soft.append("[경영진] 등록된 브랜드가 언급된 항목이 없습니다")
+
+    # --- Instagram, when a manual run collected it. Its metric is 좋아요, and a
+    # fallback post must carry its own real date so it is never read as the
+    # target day's post.
+    ig = report.get("instagram") or {}
+    for item in ig.get("exact") or []:
+        if item.get("likes") in (None, ""):
+            hard.append(f"[감사역] 인스타 '{item.get('url', '?')}' 좋아요 수 없음")
+        if "views" in item:
+            hard.append(f"[감사역] 인스타 '{item.get('url', '?')}' 조회수 필드 사용 — 좋아요만 허용")
+    for item in ig.get("fallback") or []:
+        if not item.get("realDate"):
+            hard.append(
+                f"[감사역] 인스타 대체 게시물 '{item.get('url', '?')}' 실제 날짜 없음 "
+                "— 기준일 게시물로 오인될 수 있습니다"
+            )
+        elif item["realDate"] == report["date"]:
+            hard.append(
+                f"[감사역] 인스타 '{item.get('url', '?')}'는 기준일 게시물인데 대체 항목으로 분류됨"
+            )
 
     return hard, soft
 

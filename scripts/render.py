@@ -15,6 +15,14 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 CONFIG = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
+
+# Korean output must not depend on the console codepage (cp949 on Windows
+# raises UnicodeEncodeError on an em dash and kills the run).
+for _s in (sys.stdout, sys.stderr):
+    try:
+        _s.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
 KST = dt.timezone(dt.timedelta(hours=9))
 
 
@@ -95,6 +103,18 @@ background:rgba(0,0,0,.55);color:#fff;padding:4px 9px;border-radius:999px;z-inde
 .card .cat{display:inline-block;font-size:10px;font-weight:700;background:var(--gold);
 color:#1a0f08;padding:2px 8px;border-radius:999px;margin-bottom:6px}
 .card .cat--dim{background:rgba(255,255,255,.22);color:#fff}
+.card .badge--ig{background:rgba(182,51,108,.78)}
+.card .cover.ph{background:linear-gradient(155deg,#b6336c,#5b2a6b)}
+.card .real-date{position:absolute;bottom:10px;right:12px;z-index:3;font-size:10.5px;
+font-weight:700;color:#fff;background:rgba(0,0,0,.45);padding:2px 7px;border-radius:999px}
+.grid.ig{grid-auto-rows:120px}
+h2.section{font-family:'Black Han Sans',sans-serif;font-weight:400;font-size:19px;
+margin:0 0 12px;display:flex;align-items:center;gap:9px}
+h2.section .n{font-family:'Gothic A1',sans-serif;font-size:12px;font-weight:700;
+color:var(--ink-dim);background:var(--surface-2);border:1px solid var(--line);
+border-radius:999px;padding:2px 9px}
+h3.subsection{font-size:12.5px;font-weight:700;color:var(--ink-dim);margin:18px 0 10px;
+letter-spacing:.04em}
 .card .title{font-size:14px;font-weight:700;line-height:1.32;margin:0 0 5px;
 display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .card .meta{display:flex;gap:7px;font-size:11.5px;color:rgba(255,255,255,.78)}
@@ -109,6 +129,53 @@ display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hi
 .note b{color:var(--ink)}
 .note p{margin:0 0 10px}
 """
+
+
+def ig_card(item, is_fallback):
+    """Instagram card. The metric is 좋아요, never 조회수 — Instagram does not
+    expose view counts without a login, so a fallback card also shows its own
+    real date rather than implying it belongs to the target day."""
+    date_badge = (
+        f'<span class="real-date">{esc(kst_label(item["realDate"]))} 게시</span>'
+        if is_fallback and item.get("realDate")
+        else ""
+    )
+    return f"""
+    <a class="card" href="{esc(item['url'])}" target="_blank" rel="noopener">
+      <div class="cover ph"></div>
+      <div class="scrim"></div>
+      <span class="badge badge--ig">📷 Instagram</span>
+      <div class="body">
+        <span class="cat">{esc(item.get('brand', ''))}</span>
+        <p class="title">{esc(item.get('caption', ''))}</p>
+        <div class="meta"><span class="views">좋아요 {fmt(item.get('likes'))}개</span></div>
+      </div>
+      {date_badge}
+    </a>"""
+
+
+def instagram_section(report):
+    """Only the manual (browser) run can collect Instagram; the daily automated
+    run leaves this empty on purpose and says why."""
+    ig = report.get("instagram") or {}
+    exact, fallback = ig.get("exact") or [], ig.get("fallback") or []
+    if not exact and not fallback:
+        return """
+<h2 class="section">📷 인스타그램 <span class="n">자동 수집 제외</span></h2>
+<div class="empty">인스타그램은 로그인 없이 해시태그 검색과 조회수 조회가 모두 막혀 있어
+자동 실행에서는 수집하지 않습니다. 브랜드 계정을 직접 확인하는 방식은 사람이 실행할 때만
+가능하며, 그때 수집한 결과는 좋아요 수 기준으로 이 자리에 함께 실립니다.</div>"""
+
+    blocks = [f'<h2 class="section">📷 인스타그램 <span class="n">{len(exact) + len(fallback)}건</span></h2>']
+    if exact:
+        blocks.append(f'<h3 class="subsection">정확히 {esc(report["date"])} 게시 ({len(exact)}곳)</h3>')
+        blocks.append(f'<div class="grid ig">{"".join(ig_card(i, False) for i in exact)}</div>')
+    if fallback:
+        blocks.append(
+            f'<h3 class="subsection">최근 인기 게시물 (날짜 다름, {len(fallback)}곳)</h3>'
+        )
+        blocks.append(f'<div class="grid ig">{"".join(ig_card(i, True) for i in fallback)}</div>')
+    return "\n".join(blocks)
 
 
 def verify_panel(v):
@@ -162,11 +229,13 @@ def render(report, verify=None, archive_link="./archive/"):
   <span class="chip">후보 <b>{fmt(report['candidateCount'])}건</b> → 게재 <b>{fmt(len(items))}건</b></span>
   <span class="chip">이 중 신메뉴·신상 <b>{launches}건</b></span>
 </div>
+<h2 class="section">▶ 유튜브 <span class="n">{len(items)}건</span></h2>
 {grid}
+{instagram_section(report)}
 <div class="note">
   <p><b>수집 방식:</b> 키워드 {len(report['keywords'])}개({esc(', '.join(report['keywords']))})로 후보 {fmt(report['candidateCount'])}건을 모은 뒤, 각 영상의 실제 업로드 시각과 조회수를 확인해 {esc(report['date'])}(KST)에 올라온 것만 남겼습니다. 화면에 적힌 숫자는 전부 해당 영상에서 직접 읽은 값입니다.</p>
   <p><b>탈락 내역:</b> 날짜 불일치 {rej.get('date', 0)}건 · 조회수 미달 {rej.get('views', 0)}건 · 주제 불일치 {rej.get('relevance', 0)}건 · 확인 불가 {rej.get('unverifiable', 0)}건. 조건을 통과한 {report.get('qualifiedCount', 0)}건 중 한 채널이 상위를 독식하지 않도록 채널당 최대 {CONFIG.get('perChannel', 2)}건으로 제한해 게재했습니다. 10건이 안 되면 빈자리를 채우지 않습니다.</p>
-  <p><b>인스타그램은 포함되지 않습니다.</b> 로그인 없이는 해시태그 검색과 조회수 조회가 모두 막혀 있어, 숫자를 지어내지 않기 위해 의도적으로 제외했습니다.</p>
+  <p><b>인스타그램 지표는 좋아요 수입니다.</b> 인스타그램은 로그인 없이 조회수를 공개하지 않으므로, 조회수 대신 좋아요 수를 쓰고 카드에도 그렇게 표기합니다. 두 숫자를 한 순위로 섞지 않기 위해 유튜브와 인스타그램은 각각 따로 순위를 매깁니다. 해당 날짜에 게시물이 없는 브랜드는 가장 최근 인기 게시물을 실제 날짜와 함께 보여줍니다.</p>
   <p>생성 {esc(report['generatedAt'])}</p>
 </div>
 </div></body></html>"""

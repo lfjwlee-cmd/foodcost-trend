@@ -14,13 +14,21 @@ import os
 import sys
 import time
 import datetime as dt
+import urllib.request
+import urllib.error
 from pathlib import Path
-from urllib.parse import quote
-
-from yt_dlp import YoutubeDL
+from urllib.parse import quote, urlencode
 
 ROOT = Path(__file__).resolve().parent.parent
 CONFIG = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
+
+# Korean output must not depend on the console codepage (cp949 on Windows
+# raises UnicodeEncodeError on an em dash and kills the run).
+for _s in (sys.stdout, sys.stderr):
+    try:
+        _s.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
 
 KST = dt.timezone(dt.timedelta(hours=9))
 # YouTube's "this week" upload filter. There is no yesterday-only filter, so this
@@ -38,6 +46,14 @@ COMMON_OPTS = {
 }
 
 HANGUL = range(0xAC00, 0xD7A4)
+API_KEY = os.environ.get("YOUTUBE_API_KEY", "").strip()
+
+
+def _lazy_ytdlp():
+    """Imported only on the yt-dlp path so the API path needs no dependency."""
+    from yt_dlp import YoutubeDL
+
+    return YoutubeDL
 
 
 def target_date():
@@ -58,6 +74,7 @@ def search_candidates(keyword, limit):
     Returns None (not []) when the search itself failed, so the caller can tell
     "nothing matched" apart from "the network broke".
     """
+    YoutubeDL = _lazy_ytdlp()
     url = f"https://www.youtube.com/results?search_query={quote(keyword)}&sp={SP_THIS_WEEK}"
     opts = dict(COMMON_OPTS, extract_flat=True, playlistend=limit)
     info = None
@@ -90,6 +107,7 @@ def search_candidates(keyword, limit):
 
 
 def fetch_meta(video_id):
+    YoutubeDL = _lazy_ytdlp()
     try:
         with YoutubeDL(COMMON_OPTS) as ydl:
             info = ydl.extract_info(
@@ -149,6 +167,137 @@ def brand_of(title):
         if b.lower() in title.lower():
             return b
     return None
+
+
+def api_get(endpoint, params):
+    """One YouTube Data API call. Raises on failure — the caller decides."""
+    qs = urlencode(dict(params, key=API_KEY))
+    url = f"https://www.googleapis.com/youtube/v3/{endpoint}?{qs}"
+    req = urllib.request.Request(url, headers={"Accept": "application/json"})
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        return json.loads(resp.read().decode("utf-8"))
+
+
+def collect_api():
+    """Collect via the official Data API.
+
+    Used on GitHub Actions, where yt-dlp's per-video requests are answered with
+    "Sign in to confirm you're not a bot" from datacenter IPs (verified: 40/40
+    blocked). The API also filters by publish time server-side, so nearly every
+    result is already inside the target day.
+
+    Quota: search.list costs 100 units per keyword, videos.list 1 per call —
+    about 610 of the free 10,000/day for the default 6 keywords.
+    """
+    day, start, end = target_date()
+    threshold = CONFIG.get("viewThreshold", 1000)
+    top_n = CONFIG.get("topN", 10)
+    print(f"engine: YouTube Data API | target date (KST): {day}")
+
+    seen, ids, failed = set(), [], []
+    for kw in CONFIG["keywords"]:
+        try:
+            data = api_get(
+                "search",
+                {
+                    "part": "snippet",
+                    "q": kw,
+                    "type": "video",
+                    "order": "viewCount",
+                    "regionCode": CONFIG.get("regionCode", "KR"),
+                    "relevanceLanguage": CONFIG.get("relevanceLanguage", "ko"),
+                    "publishedAfter": start.astimezone(dt.timezone.utc).isoformat().replace("+00:00", "Z"),
+                    "publishedBefore": end.astimezone(dt.timezone.utc).isoformat().replace("+00:00", "Z"),
+                    "maxResults": 50,
+                },
+            )
+        except Exception as exc:
+            failed.append(kw)
+            print(f"  search {kw!r}: FAILED ({exc})", file=sys.stderr)
+            continue
+        found = [it["id"]["videoId"] for it in data.get("items", []) if it.get("id", {}).get("videoId")]
+        print(f"  search {kw!r}: {len(found)}")
+        for vid in found:
+            if vid not in seen:
+                seen.add(vid)
+                ids.append(vid)
+
+    if len(failed) > len(CONFIG["keywords"]) // 2:
+        raise SystemExit(
+            f"aborting: {len(failed)}/{len(CONFIG['keywords'])} searches failed "
+            f"({', '.join(failed)}). Nothing was written."
+        )
+
+    # videos.list carries the exact publishedAt and viewCount; search snippets do not.
+    rejected = {"date": 0, "views": 0, "relevance": 0, "unverifiable": 0}
+    kept, attempts = [], 0
+    for i in range(0, len(ids), 50):
+        batch = ids[i : i + 50]
+        attempts += len(batch)
+        try:
+            data = api_get("videos", {"part": "snippet,statistics", "id": ",".join(batch)})
+        except Exception as exc:
+            rejected["unverifiable"] += len(batch)
+            print(f"  videos.list batch failed: {exc}", file=sys.stderr)
+            continue
+        returned = {it["id"] for it in data.get("items", [])}
+        rejected["unverifiable"] += len(set(batch) - returned)
+        for it in data.get("items", []):
+            sn, st = it["snippet"], it.get("statistics", {})
+            ts = dt.datetime.fromisoformat(sn["publishedAt"].replace("Z", "+00:00")).timestamp()
+            # Re-check the window ourselves rather than trusting the query alone.
+            if not (start.timestamp() <= ts < end.timestamp()):
+                rejected["date"] += 1
+                continue
+            views = int(st.get("viewCount", 0))
+            if views < threshold:
+                rejected["views"] += 1
+                continue
+            desc = (sn.get("description") or "")[:400]
+            if not is_relevant(sn.get("title", ""), sn.get("channelTitle", ""), desc):
+                rejected["relevance"] += 1
+                continue
+            kept.append(
+                {
+                    "id": it["id"],
+                    "title": sn.get("title", ""),
+                    "channel": sn.get("channelTitle", ""),
+                    "channel_id": sn.get("channelId", ""),
+                    "views": views,
+                    "likes": int(st["likeCount"]) if "likeCount" in st else None,
+                    "timestamp": ts,
+                    "description": desc,
+                    "url": f"https://www.youtube.com/watch?v={it['id']}",
+                    "thumbnail": f"https://i.ytimg.com/vi/{it['id']}/hqdefault.jpg",
+                    "brand": brand_of(sn.get("title", "")),
+                    "tier": tier_of(sn.get("title", ""), desc),
+                }
+            )
+
+    kept.sort(key=lambda m: m["views"], reverse=True)
+    cap, counts, final = CONFIG.get("perChannel", 2), {}, []
+    for item in kept:
+        cid = item["channel_id"] or item["channel"]
+        if counts.get(cid, 0) >= cap:
+            continue
+        counts[cid] = counts.get(cid, 0) + 1
+        final.append(item)
+    final = final[:top_n]
+    print(f"qualified {len(kept)} -> published {len(final)}  rejected={rejected}")
+
+    return {
+        "date": day.isoformat(),
+        "generatedAt": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
+        "engine": "YouTube Data API",
+        "keywords": CONFIG["keywords"],
+        "viewThreshold": threshold,
+        "candidateCount": len(ids),
+        "qualifiedCount": len(kept),
+        "fetchAttempts": attempts,
+        "failedKeywords": failed,
+        "rejected": rejected,
+        "items": final,
+    }
 
 
 def collect():
@@ -248,6 +397,7 @@ def collect():
         "generatedAt": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
         "keywords": CONFIG["keywords"],
         "viewThreshold": threshold,
+        "engine": "yt-dlp",
         "candidateCount": len(pool),
         "qualifiedCount": len(kept),
         "fetchAttempts": fetch_attempts,
@@ -258,7 +408,9 @@ def collect():
 
 
 def main():
-    report = collect()
+    # With a key, use the official API (the only path that works from CI).
+    # Without one, fall back to yt-dlp, which works fine from a home network.
+    report = collect_api() if API_KEY else collect()
     (ROOT / "data").mkdir(exist_ok=True)
     out = ROOT / "data" / f"{report['date']}.json"
     out.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")

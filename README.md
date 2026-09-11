@@ -1,7 +1,21 @@
 # 트렌드 메뉴 클리핑 (foodcost-trend)
 
 매일 오전 6시 30분(KST)에 자동으로 전날 올라온 한국 음식·신메뉴 유튜브 콘텐츠를 모아
-벤토그리드 HTML 리포트로 발행합니다. API 키도, 로그인도, 유료 서비스도 쓰지 않습니다.
+벤토그리드 HTML 리포트로 발행합니다.
+
+## 시작하기 전에: 유튜브 API 키 (무료, 5분)
+
+GitHub Actions에서 돌리려면 키가 필요합니다. 실측 결과 GitHub 서버 IP에서는 유튜브가
+개별 영상 조회를 전부 차단합니다(40건 중 40건 `Sign in to confirm you're not a bot`).
+집 네트워크에서 직접 돌릴 때는 키 없이도 동작합니다.
+
+1. https://console.cloud.google.com → 새 프로젝트 생성
+2. API 및 서비스 → 라이브러리 → **YouTube Data API v3** → 사용 설정
+3. 사용자 인증정보 → 사용자 인증정보 만들기 → **API 키** → 복사
+4. 이 저장소 → Settings → Secrets and variables → Actions → New repository secret
+   - Name: `YOUTUBE_API_KEY`, Value: 복사한 키
+
+비용은 들지 않습니다. 하루 무료 할당량 10,000 유닛 중 약 610 유닛만 씁니다.
 
 - 오늘 리포트: `docs/index.html`
 - 지난 리포트: `docs/archive/`
@@ -9,10 +23,21 @@
 
 ## 동작 방식
 
-1. `config.json`의 키워드로 유튜브를 검색해 후보 영상을 모읍니다(업로드 기간 필터 적용).
-2. 후보마다 실제 업로드 시각과 조회수를 `yt-dlp`로 확인합니다.
-3. **KST 기준 어제 하루에 정확히 올라온 것**만 남기고, 조회수 하한(기본 1,000회)을 적용합니다.
-4. 한 채널이 상위를 독식하지 않도록 채널당 최대 2건으로 제한한 뒤 상위 10건을 발행합니다.
+수집 → **검증** → 발행 3단계이고, 검증을 통과하지 못하면 발행하지 않습니다.
+
+1. **수집** (`scripts/build.py`) — `config.json`의 키워드로 검색해 후보를 모으고,
+   각 영상의 실제 업로드 시각과 조회수를 확인합니다. **KST 기준 어제 하루에 정확히
+   올라온 것**만 남기고 조회수 하한(기본 1,000회)과 주제 관련성을 적용한 뒤,
+   채널당 최대 2건으로 제한해 상위 10건을 추립니다.
+2. **검증** (`scripts/verify.py`) — 발행 전 자동 점검. 네 가지 관점을 코드로 옮긴 것입니다.
+   - 감사역: 업로드일·조회수가 리포트가 주장하는 조건과 실제로 맞는지, 중복은 없는지
+   - 엔지니어: 수집이 완결됐는지(확인 불가 비율 20% 초과면 실패)
+   - 마케팅: 한 채널이 상한을 넘지 않았는지, 게재 건수가 너무 적지는 않은지
+   - 경영진: 실제 신메뉴·신상이 몇 건인지, 등록 브랜드 언급이 있는지
+3. **발행** (`scripts/render.py`) — 검증을 통과한 경우에만 `docs/`를 갱신합니다.
+
+검증 실패(하드)는 발행을 막고 **전날 페이지를 그대로 둡니다.** 잘못된 리포트로 덮어쓰는
+것보다 낫기 때문입니다. 경고(소프트)는 발행하되 페이지 상단에 그대로 표시합니다.
 
 숫자는 전부 해당 영상에서 직접 읽은 값입니다. 조건을 통과한 영상이 10건이 안 되면
 빈자리를 채우지 않고 그만큼만 싣고, 탈락 사유별 건수를 리포트 하단에 남깁니다.
@@ -33,9 +58,13 @@
 ## 직접 돌려보기
 
 ```bash
-pip install yt-dlp
-python scripts/build.py                 # 어제 기준
+pip install yt-dlp                      # 키 없이 로컬 실행할 때만 필요
+python scripts/build.py                 # 수집 (어제 기준)
+python scripts/verify.py                # 검증 — 실패하면 여기서 멈춤
+python scripts/render.py                # 발행
+
 TARGET_DATE=2026-09-09 python scripts/build.py   # 특정 날짜
+YOUTUBE_API_KEY=xxx python scripts/build.py      # 공식 API로 수집
 ```
 
 GitHub에서는 Actions 탭 → "Daily Trend Menu Report" → Run workflow로 수동 실행할 수 있습니다.

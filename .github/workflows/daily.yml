@@ -29,11 +29,19 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install yt-dlp
-        run: pip install --upgrade yt-dlp
+      # yt-dlp is only the local/no-key fallback. On GitHub runners YouTube
+      # answers per-video requests with "Sign in to confirm you're not a bot"
+      # (verified: 40/40 blocked), so CI needs the official API key.
+      - name: Check API key
+        run: |
+          if [ -z "${{ secrets.YOUTUBE_API_KEY }}" ]; then
+            echo "::error::YOUTUBE_API_KEY secret is not set. Settings > Secrets and variables > Actions > New repository secret."
+            exit 1
+          fi
 
       - name: Collect
         env:
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
           TARGET_DATE: ${{ inputs.target_date }}
           PYTHONIOENCODING: utf-8
         run: python scripts/build.py
