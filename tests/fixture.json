@@ -1,0 +1,26 @@
+{
+  "date": "2026-01-15",
+  "generatedAt": "2026-01-16T00:00:00+00:00",
+  "engine": "fixture",
+  "keywords": ["신메뉴"],
+  "viewThreshold": 1000,
+  "candidateCount": 40,
+  "qualifiedCount": 12,
+  "fetchAttempts": 20,
+  "failedKeywords": [],
+  "rejected": {"date": 3, "views": 4, "relevance": 5, "unverifiable": 1},
+  "items": [
+    {"id": "aaaaaaaaaaa", "title": "편의점 신상 디저트 신메뉴 먹어봤다", "channel": "테스트푸드",
+     "channel_id": "UC_a", "views": 50000, "likes": 900, "timestamp": 1768446000,
+     "description": "CU 신상 디저트 출시", "url": "https://www.youtube.com/watch?v=aaaaaaaaaaa",
+     "thumbnail": "t", "brand": "CU", "tier": "신메뉴·신상"},
+    {"id": "bbbbbbbbbbb", "title": "메가커피 신메뉴 전메뉴 리뷰", "channel": "테스트카페",
+     "channel_id": "UC_b", "views": 30000, "likes": 500, "timestamp": 1768450000,
+     "description": "메가커피 신메뉴 출시", "url": "https://www.youtube.com/watch?v=bbbbbbbbbbb",
+     "thumbnail": "t", "brand": "메가커피", "tier": "신메뉴·신상"},
+    {"id": "ccccccccccc", "title": "떡볶이 맛집 먹방", "channel": "테스트푸드",
+     "channel_id": "UC_a", "views": 20000, "likes": 300, "timestamp": 1768460000,
+     "description": "분식 맛집", "url": "https://www.youtube.com/watch?v=ccccccccccc",
+     "thumbnail": "t", "brand": null, "tier": "푸드 콘텐츠"}
+  ]
+}

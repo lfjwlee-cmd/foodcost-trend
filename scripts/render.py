@@ -231,7 +231,7 @@ def render(report, verify=None, archive_link="./archive/"):
 <style>{STYLE}</style></head><body><div class="wrap">
 <header>
   <div>
-    <p class="eyebrow">Trend Menu Clipping · YouTube · 매일 06:30 KST 자동 갱신</p>
+    <p class="eyebrow">Trend Menu Clipping · YouTube · 매일 아침 자동 갱신 (KST)</p>
     <h1>{esc(kst_label(report['date']))} 트렌드 메뉴 랭킹</h1>
   </div>
   <div class="head-meta">

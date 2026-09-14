@@ -1,0 +1,8 @@
+# Only the keyless local path needs this. With YOUTUBE_API_KEY set (how the
+# GitHub Actions run works), build.py uses the official Data API and imports
+# nothing beyond the standard library.
+#
+# Not pinned to an exact version on purpose: YouTube changes its player often
+# enough that an old yt-dlp stops extracting, and the fix is always a newer
+# release. Known good: 2026.08.19.
+yt-dlp>=2026.08.19
