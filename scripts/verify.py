@@ -5,7 +5,8 @@ The checks are the four review perspectives that were applied to this report by
 hand, turned into something that can run every morning without a human:
 
   감사역 (data integrity)   — every published number must be verifiable, and the
-                              filters the report claims must actually hold
+                              filters the report claims are re-applied here to
+                              the finished items rather than trusted
   엔지니어 (reproducibility) — the run itself must be complete, not a partial
                               collection that silently looks like a quiet day
   마케팅 (usefulness)        — a board of one channel's uploads is not a trend
@@ -37,6 +38,7 @@ for _s in (sys.stdout, sys.stderr):
     except Exception:
         pass
 KST = dt.timezone(dt.timedelta(hours=9))
+HANGUL = range(0xAC00, 0xD7A4)
 
 REQUIRED_FIELDS = ("id", "title", "channel", "views", "timestamp", "url")
 
@@ -51,15 +53,45 @@ def target_data_file():
     way so they cannot disagree.
     """
     override = os.environ.get("TARGET_DATE", "").strip()
-    day = (
-        dt.date.fromisoformat(override)
-        if override
-        else (dt.datetime.now(KST) - dt.timedelta(days=1)).date()
-    )
+    if override:
+        try:
+            day = dt.date.fromisoformat(override)
+        except ValueError:
+            sys.exit(f"TARGET_DATE={override!r} 형식이 잘못됐습니다 — YYYY-MM-DD 로 입력하세요")
+    else:
+        day = (dt.datetime.now(KST) - dt.timedelta(days=1)).date()
     path = ROOT / "data" / f"{day.isoformat()}.json"
     if not path.exists():
         sys.exit(f"{path.name} not found — run scripts/build.py first")
     return path
+
+
+def filter_violations(item):
+    """Re-apply the content filters to an item that is already in the report.
+
+    build.py applies these while collecting, so repeating them here looks
+    redundant — but the collector grading its own output is not a gate. If
+    is_relevant() regresses, or a config change silently fails to take effect,
+    only an independent pass over the finished report catches it. The two
+    SpongeBob recaps and the cat-food clip that reached the live page would all
+    have been stopped here.
+    """
+    hay = " ".join(
+        str(item.get(f) or "") for f in ("title", "channel", "description")
+    ).lower()
+    out = []
+    if CONFIG.get("requireHangul") and not any(ord(c) in HANGUL for c in hay):
+        out.append("한글 없음")
+    hits = [w for w in CONFIG.get("excludeWords", []) if w.lower() in hay]
+    if hits:
+        out.append(f"제외어({', '.join(hits[:3])})")
+    ch = (item.get("channel") or "").lower()
+    bad = [c for c in CONFIG.get("excludeChannels", []) if c.lower() in ch]
+    if bad:
+        out.append(f"제외채널({', '.join(bad)})")
+    if not any(w.lower() in hay for w in CONFIG.get("includeWords", [])):
+        out.append("포함어 없음")
+    return out
 
 
 def check(report):
@@ -81,6 +113,12 @@ def check(report):
             hard.append(f"[감사역] '{item['id']}' 업로드일 불일치: {actual} ≠ {report['date']}")
         if isinstance(item.get("views"), int) and item["views"] < threshold:
             hard.append(f"[감사역] '{item['id']}' 조회수 {item['views']} < 기준 {threshold}")
+        bad = filter_violations(item)
+        if bad:
+            hard.append(
+                f"[감사역] '{item.get('id', '?')}' 필터 위반: {', '.join(bad)} "
+                f"— {(item.get('title') or '')[:36]}"
+            )
 
     ids = [i.get("id") for i in items]
     dupes = [vid for vid, n in Counter(ids).items() if n > 1]

@@ -198,7 +198,7 @@ def verify_panel(v):
         f'<ul>{"".join(f"<li>{esc(s)}</li>" for s in soft)}</ul>' if soft else ""
     )
     return f"""<div class="verify">{tag}
-    <span>발행 전 자동 검증 {esc(v.get('checkedAt', ''))} — 업로드일·조회수·중복·채널 편중·수집 완결성 확인</span>
+    <span>발행 전 자동 검증 {esc(v.get('checkedAt', ''))} — 업로드일·조회수·중복·채널 편중·제외어 필터·수집 완결성 확인</span>
     {notes}</div>"""
 
 
@@ -268,11 +268,13 @@ def main():
         # Same date rule as build.py and verify.py — see verify.target_data_file
         # for why "the last file on disk" is the wrong default.
         override = os.environ.get("TARGET_DATE", "").strip()
-        day = (
-            dt.date.fromisoformat(override)
-            if override
-            else (dt.datetime.now(KST) - dt.timedelta(days=1)).date()
-        )
+        if override:
+            try:
+                day = dt.date.fromisoformat(override)
+            except ValueError:
+                sys.exit(f"TARGET_DATE={override!r} 형식이 잘못됐습니다 — YYYY-MM-DD 로 입력하세요")
+        else:
+            day = (dt.datetime.now(KST) - dt.timedelta(days=1)).date()
         path = data_dir / f"{day.isoformat()}.json"
         if not path.exists():
             sys.exit(f"{path.name} not found — run scripts/build.py first")

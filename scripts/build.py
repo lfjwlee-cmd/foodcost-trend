@@ -11,6 +11,7 @@ published, and scripts/render.py writes the pages.
 
 import json
 import os
+import re
 import sys
 import time
 import datetime as dt
@@ -56,14 +57,24 @@ def _lazy_ytdlp():
     return YoutubeDL
 
 
+def parse_target_date():
+    """The date this run is about: TARGET_DATE if set, else KST-yesterday.
+
+    All three scripts resolve the date this same way so they cannot disagree
+    about which day is being built, verified and rendered.
+    """
+    override = (os.environ.get("TARGET_DATE") or "").strip()
+    if not override:
+        return (dt.datetime.now(KST) - dt.timedelta(days=1)).date()
+    try:
+        return dt.date.fromisoformat(override)
+    except ValueError:
+        sys.exit(f"TARGET_DATE={override!r} 형식이 잘못됐습니다 — YYYY-MM-DD 로 입력하세요")
+
+
 def target_date():
-    """Yesterday's calendar date in KST, plus its UTC bounds."""
-    override = os.environ.get("TARGET_DATE")
-    day = (
-        dt.date.fromisoformat(override)
-        if override
-        else (dt.datetime.now(KST) - dt.timedelta(days=1)).date()
-    )
+    """Target date plus its KST day bounds."""
+    day = parse_target_date()
     start = dt.datetime.combine(day, dt.time(0, 0), tzinfo=KST)
     return day, start, start + dt.timedelta(days=1)
 
@@ -175,8 +186,19 @@ def tier_of(title, description=""):
 
 
 def brand_of(title):
+    """The registered brand a title actually mentions, or None.
+
+    Plain substring matching is right for Hangul, which has no word boundaries,
+    and wrong for short ASCII tags: "CU" matches inside "cup", "cute" and
+    "culture", which are not rare in Korean titles that mix in English. That is
+    the same class of false positive that "냥" inside "그냥" would cause, so
+    ASCII tags require word boundaries.
+    """
     for b in CONFIG.get("brandTags", []):
-        if b.lower() in title.lower():
+        if b.isascii():
+            if re.search(rf"(?<![A-Za-z0-9]){re.escape(b)}(?![A-Za-z0-9])", title, re.I):
+                return b
+        elif b.lower() in title.lower():
             return b
     return None
 
@@ -365,10 +387,15 @@ def collect():
     triaged = triaged[: CONFIG.get("maxCandidates", 120)]
     print(f"pool {len(pool)} -> triaged {len(triaged)} (fetching exact upload time for each)")
 
-    kept, fetch_attempts = [], 0
+    cap = CONFIG.get("perChannel", 2)
+    kept, fetch_attempts, cap_counts = [], 0, {}
     for i, entry in enumerate(triaged, 1):
         # Keep collecting past top_n so the per-channel cap still has choices.
-        if len(kept) >= top_n * 2:
+        # Count only what survives the cap: 20 videos from one prolific channel
+        # collapse to 2 afterwards, and stopping on the raw count would publish
+        # a near-empty board that looks like a quiet day.
+        eligible = sum(min(n, cap) for n in cap_counts.values())
+        if eligible >= top_n * 2:
             print(f"  early stop after {i - 1} fetches ({len(kept)} qualified)")
             break
         fetch_attempts += 1
@@ -393,11 +420,13 @@ def collect():
         meta["brand"] = brand_of(meta["title"])
         meta["tier"] = tier_of(meta["title"], meta["description"])
         kept.append(meta)
+        cid = meta["channel_id"] or meta["channel"]
+        cap_counts[cid] = cap_counts.get(cid, 0) + 1
 
     kept.sort(key=lambda m: m["views"], reverse=True)
 
     # Cap per channel so one prolific channel cannot take over the whole board.
-    cap, counts, final = CONFIG.get("perChannel", 2), {}, []
+    counts, final = {}, []
     for item in kept:
         cid = item["channel_id"] or item["channel"]
         if counts.get(cid, 0) >= cap:
