@@ -115,6 +115,22 @@ color:var(--ink-dim);background:var(--surface-2);border:1px solid var(--line);
 border-radius:999px;padding:2px 9px}
 h3.subsection{font-size:12.5px;font-weight:700;color:var(--ink-dim);margin:18px 0 10px;
 letter-spacing:.04em}
+.nv-note{font-size:12px;color:var(--ink-dim);line-height:1.7;margin:0 0 14px}
+.nv-note b{color:var(--ink)}
+.nv-wrap{display:flex;flex-direction:column;gap:7px;margin-bottom:30px}
+.nv-row{display:grid;grid-template-columns:96px minmax(80px,1fr) 62px minmax(0,1.3fr);
+align-items:center;gap:10px;font-size:12.5px}
+.nv-term{font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nv-bar{height:9px;border-radius:999px;background:var(--surface-2);border:1px solid var(--line);
+overflow:hidden}
+.nv-bar span{display:block;height:100%;background:#03c75a;border-radius:999px}
+.nv-count{font-variant-numeric:tabular-nums;font-weight:900;color:var(--ink);text-align:right}
+.nv-sample{color:var(--ink-dim);text-decoration:none;white-space:nowrap;overflow:hidden;
+text-overflow:ellipsis;font-size:11.5px}
+.nv-sample:hover{color:var(--accent)}
+@media (max-width:760px){.nv-row{grid-template-columns:84px 1fr 56px}.nv-sample{display:none}}
+.empty code{background:var(--surface-2);border:1px solid var(--line);border-radius:5px;
+padding:1px 5px;font-size:12px}
 .card .title{font-size:14px;font-weight:700;line-height:1.32;margin:0 0 5px;
 display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .card .meta{display:flex;gap:7px;font-size:11.5px;color:rgba(255,255,255,.78)}
@@ -178,6 +194,57 @@ def instagram_section(report):
     return "\n".join(blocks)
 
 
+def naver_section(report):
+    """Mention counts, drawn as bars rather than ranked cards.
+
+    Deliberately shaped nothing like the YouTube grid: Naver's API has no view
+    or like count, so these numbers measure how often something was written
+    about, and must not be read as a smaller version of the view ranking.
+    """
+    nv = report.get("naver")
+    if not nv:
+        return """
+<h2 class="section">🟢 네이버 <span class="n">미설정</span></h2>
+<div class="empty">네이버 블로그·카페 언급 집계는 <code>NAVER_CLIENT_ID</code>·<code>NAVER_CLIENT_SECRET</code>
+시크릿을 등록하면 켜집니다. 네이버 검색 API는 조회수를 제공하지 않으므로, 이 섹션은 순위가 아니라
+언급 건수입니다.</div>"""
+
+    terms = [t for t in (nv.get("terms") or []) if t.get("count", 0) > 0]
+    if not terms:
+        return f"""
+<h2 class="section">🟢 네이버 <span class="n">언급 0건</span></h2>
+<div class="empty">{esc(report['date'])}에는 추적 중인 브랜드 언급이 블로그·카페에서 잡히지 않았습니다.</div>"""
+
+    top = max(t["count"] for t in terms)
+    rows = []
+    for t in terms:
+        pct = max(4, round(t["count"] / top * 100))
+        label = f"{fmt(t['count'])}건" + ("+" if t.get("capped") else "")
+        sample = ""
+        if t.get("samples"):
+            s = t["samples"][0]
+            clean = s.get("title", "").replace("<b>", "").replace("</b>", "")
+            sample = f'<a class="nv-sample" href="{esc(s.get("link", "#"))}" target="_blank" rel="noopener">{esc(clean[:44])}</a>'
+        rows.append(
+            f"""<div class="nv-row">
+  <span class="nv-term">{esc(t['term'])}</span>
+  <span class="nv-bar"><span style="width:{pct}%"></span></span>
+  <span class="nv-count">{label}</span>
+  {sample}
+</div>"""
+        )
+
+    capped = any(t.get("capped") for t in terms)
+    cap_note = (
+        " <b>+</b>는 API 한 페이지(100건)를 채워 실제로는 더 많다는 뜻입니다." if capped else ""
+    )
+    return f"""
+<h2 class="section">🟢 네이버 <span class="n">블로그·카페 언급</span></h2>
+<div class="nv-note">유튜브와 다른 지표입니다. 네이버 검색 API는 조회수·좋아요를 제공하지 않아
+<b>언급 건수</b>만 셉니다 — 조회수와 같은 줄에 놓고 비교할 수 없습니다.{cap_note}</div>
+<div class="nv-wrap">{"".join(rows)}</div>"""
+
+
 def verify_panel(v):
     if not v:
         return ""
@@ -231,6 +298,7 @@ def render(report, verify=None, archive_link="./archive/"):
 </div>
 <h2 class="section">▶ 유튜브 <span class="n">{len(items)}건</span></h2>
 {grid}
+{naver_section(report)}
 {instagram_section(report)}
 <div class="note">
   <p><b>수집 방식:</b> 키워드 {len(report['keywords'])}개({esc(', '.join(report['keywords']))})로 후보 {fmt(report['candidateCount'])}건을 모은 뒤, 각 영상의 실제 업로드 시각과 조회수를 확인해 {esc(report['date'])}(KST)에 올라온 것만 남겼습니다. 화면에 적힌 숫자는 전부 해당 영상에서 직접 읽은 값입니다.</p>
