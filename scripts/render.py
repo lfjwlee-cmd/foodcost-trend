@@ -141,9 +141,14 @@ display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hi
 .card--r23{grid-column:span 2}
 @media (max-width:760px){.grid{grid-template-columns:repeat(2,1fr)}.card--r1,.card--r23{grid-column:span 2}}
 .empty{padding:40px;text-align:center;color:var(--ink-dim);border:1px dashed var(--line);border-radius:14px}
-.note{border-top:1px solid var(--line);padding-top:18px;font-size:12.5px;color:var(--ink-dim);line-height:1.75}
+.note{border-top:1px solid var(--line);padding-top:16px;font-size:12.5px;color:var(--ink-dim);line-height:1.75}
 .note b{color:var(--ink)}
-.note p{margin:0 0 10px}
+.note p{margin:10px 0 0}
+.note summary{cursor:pointer;font-weight:700;color:var(--ink-dim);list-style:none}
+.note summary::-webkit-details-marker{display:none}
+.note summary::before{content:"▸ ";color:var(--accent)}
+.note[open] summary::before{content:"▾ "}
+.note summary:hover{color:var(--ink)}
 """
 
 
@@ -171,16 +176,15 @@ def ig_card(item, is_fallback):
 
 
 def instagram_section(report):
-    """Only the manual (browser) run can collect Instagram; the daily automated
-    run leaves this empty on purpose and says why."""
+    """Only a manual (browser-driven) run can collect Instagram.
+
+    The automated run never has this data, so the section is omitted entirely
+    rather than carrying a standing explanation of its own absence.
+    """
     ig = report.get("instagram") or {}
     exact, fallback = ig.get("exact") or [], ig.get("fallback") or []
     if not exact and not fallback:
-        return """
-<h2 class="section">📷 인스타그램 <span class="n">자동 수집 제외</span></h2>
-<div class="empty">인스타그램은 로그인 없이 해시태그 검색과 조회수 조회가 모두 막혀 있어
-자동 실행에서는 수집하지 않습니다. 브랜드 계정을 직접 확인하는 방식은 사람이 실행할 때만
-가능하며, 그때 수집한 결과는 좋아요 수 기준으로 이 자리에 함께 실립니다.</div>"""
+        return ""
 
     blocks = [f'<h2 class="section">📷 인스타그램 <span class="n">{len(exact) + len(fallback)}건</span></h2>']
     if exact:
@@ -201,19 +205,14 @@ def naver_section(report):
     or like count, so these numbers measure how often something was written
     about, and must not be read as a smaller version of the view ranking.
     """
+    # A section that only explains why it is empty is noise on a report someone
+    # scans every morning. Render nothing unless there is something to show.
     nv = report.get("naver")
     if not nv:
-        return """
-<h2 class="section">🟢 네이버 <span class="n">미설정</span></h2>
-<div class="empty">네이버 블로그·카페 언급 집계는 <code>NAVER_CLIENT_ID</code>·<code>NAVER_CLIENT_SECRET</code>
-시크릿을 등록하면 켜집니다. 네이버 검색 API는 조회수를 제공하지 않으므로, 이 섹션은 순위가 아니라
-언급 건수입니다.</div>"""
-
+        return ""
     terms = [t for t in (nv.get("terms") or []) if t.get("count", 0) > 0]
     if not terms:
-        return f"""
-<h2 class="section">🟢 네이버 <span class="n">언급 0건</span></h2>
-<div class="empty">{esc(report['date'])}에는 추적 중인 브랜드 언급이 블로그·카페에서 잡히지 않았습니다.</div>"""
+        return ""
 
     top = max(t["count"] for t in terms)
     rows = []
@@ -271,6 +270,17 @@ def render(report, verify=None, archive_link="./archive/"):
     )
     rej = report.get("rejected", {})
     launches = sum(1 for i in items if i.get("tier") == "신메뉴·신상")
+    # Only explain the likes-vs-views distinction when Instagram data is
+    # actually on the page; otherwise it explains something nobody can see.
+    ig = report.get("instagram") or {}
+    ig_note = (
+        "<p><b>인스타그램 지표는 좋아요 수입니다.</b> 인스타그램은 로그인 없이 조회수를 "
+        "공개하지 않으므로 좋아요 수를 쓰며, 유튜브 조회수와 한 순위로 섞지 않습니다. "
+        "해당 날짜에 게시물이 없는 브랜드는 가장 최근 인기 게시물을 실제 날짜와 함께 "
+        "보여줍니다.</p>"
+        if (ig.get("exact") or ig.get("fallback"))
+        else ""
+    )
     return f"""<!doctype html>
 <html lang="ko"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -300,12 +310,13 @@ def render(report, verify=None, archive_link="./archive/"):
 {grid}
 {naver_section(report)}
 {instagram_section(report)}
-<div class="note">
+<details class="note">
+  <summary>후보 {fmt(report['candidateCount'])}건 → 게재 {fmt(len(items))}건 · 집계 근거 보기</summary>
   <p><b>수집 방식:</b> 키워드 {len(report['keywords'])}개({esc(', '.join(report['keywords']))})로 후보 {fmt(report['candidateCount'])}건을 모은 뒤, 각 영상의 실제 업로드 시각과 조회수를 확인해 {esc(report['date'])}(KST)에 올라온 것만 남겼습니다. 화면에 적힌 숫자는 전부 해당 영상에서 직접 읽은 값입니다.</p>
-  <p><b>탈락 내역:</b> 날짜 불일치 {rej.get('date', 0)}건 · 조회수 미달 {rej.get('views', 0)}건 · 주제 불일치 {rej.get('relevance', 0)}건 · 확인 불가 {rej.get('unverifiable', 0)}건. 조건을 통과한 {report.get('qualifiedCount', 0)}건 중 한 채널이 상위를 독식하지 않도록 채널당 최대 {CONFIG.get('perChannel', 2)}건으로 제한해 게재했습니다. 10건이 안 되면 빈자리를 채우지 않습니다.</p>
-  <p><b>인스타그램 지표는 좋아요 수입니다.</b> 인스타그램은 로그인 없이 조회수를 공개하지 않으므로, 조회수 대신 좋아요 수를 쓰고 카드에도 그렇게 표기합니다. 두 숫자를 한 순위로 섞지 않기 위해 유튜브와 인스타그램은 각각 따로 순위를 매깁니다. 해당 날짜에 게시물이 없는 브랜드는 가장 최근 인기 게시물을 실제 날짜와 함께 보여줍니다.</p>
+  <p><b>탈락 내역:</b> 날짜 불일치 {rej.get('date', 0)}건 · 조회수 미달 {rej.get('views', 0)}건 · 주제 불일치 {rej.get('relevance', 0)}건 · 확인 불가 {rej.get('unverifiable', 0)}건. 조건을 통과한 {report.get('qualifiedCount', 0)}건 중 한 채널이 상위를 독식하지 않도록 채널당 최대 {CONFIG.get('perChannel', 2)}건으로 제한해 게재했습니다. 부족하면 빈자리를 채우지 않습니다.</p>
+  {ig_note}
   <p>생성 {esc(report['generatedAt'])}</p>
-</div>
+</details>
 </div></body></html>"""
 
 

@@ -135,12 +135,24 @@ def fetch_meta(video_id):
     }
 
 
-def is_relevant(*parts):
-    """Korean food/menu content only.
+def is_blocked_channel(channel):
+    ch = (channel or "").lower()
+    return any(c.lower() in ch for c in CONFIG.get("excludeChannels", []))
 
-    The loose version of this filter (any food word anywhere) let through Tokyo
-    travel guides and a US local-news piece about Massachusetts restaurants, so
-    it also requires Korean text and rejects overseas-travel markers.
+
+def is_relevant(*parts):
+    """Korean food/menu content about real, buyable products.
+
+    Every exclusion here comes from something that actually got published and
+    should not have:
+      - a Tokyo travel guide and a US news piece about Massachusetts
+        restaurants (fixed by requiring Korean text and dropping travel markers)
+      - two SpongeBob episode recaps that ranked 4th and 10th, because
+        "집게리아 신메뉴" satisfies a food-word filter perfectly well
+    Fiction is the tricky class: it uses menu vocabulary correctly, so only the
+    subject matter separates it. Word-matching alone will keep leaking, which is
+    why `excludeChannels` exists — once a channel produces a false positive,
+    block the channel rather than guessing at its next title.
     """
     hay = " ".join(p for p in parts if p).lower()
     if CONFIG.get("requireHangul") and not any(ord(c) in HANGUL for c in hay):
@@ -254,7 +266,9 @@ def collect_api():
                 rejected["views"] += 1
                 continue
             desc = (sn.get("description") or "")[:400]
-            if not is_relevant(sn.get("title", ""), sn.get("channelTitle", ""), desc):
+            if is_blocked_channel(sn.get("channelTitle", "")) or not is_relevant(
+                sn.get("title", ""), sn.get("channelTitle", ""), desc
+            ):
                 rejected["relevance"] += 1
                 continue
             kept.append(
@@ -371,7 +385,9 @@ def collect():
         # Re-check relevance against the video's real metadata. YouTube serves
         # auto-translated titles on the search page, so a US news clip can look
         # Korean during triage and arrive here with its original English title.
-        if not is_relevant(meta["title"], meta["channel"], meta["description"]):
+        if is_blocked_channel(meta["channel"]) or not is_relevant(
+            meta["title"], meta["channel"], meta["description"]
+        ):
             rejected["relevance"] += 1
             continue
         meta["brand"] = brand_of(meta["title"])
