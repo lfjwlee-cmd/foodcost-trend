@@ -2,9 +2,16 @@ name: Daily Trend Menu Report
 
 on:
   schedule:
-    # 21:30 UTC = 06:30 KST. GitHub's scheduler can run a few minutes late
-    # under load, so treat this as "around 06:30", not to the second.
-    - cron: "30 21 * * *"
+    # Target: the report is up before 06:30 KST.
+    #
+    # 21:30 UTC (= 06:30 KST) was the obvious setting, but GitHub's scheduler
+    # ran it 1.5-2h late every time (observed 08:29 / 08:10 / 08:21 KST), so
+    # this fires at 19:20 UTC (= 04:20 KST), leaving ~2h10m of headroom before
+    # 06:30. Running early is harmless: the target date is computed from the
+    # KST clock at run time, so it still resolves to the previous calendar day
+    # whether the job starts at 04:20 or slips to 07:00.
+    # Odd minutes are also less congested than :00 and :30.
+    - cron: "20 19 * * *"
   workflow_dispatch:
     inputs:
       target_date:
