@@ -20,6 +20,7 @@ Usage: python scripts/verify.py [data/<date>.json]
 """
 
 import json
+import os
 import sys
 import datetime as dt
 from collections import Counter
@@ -40,12 +41,25 @@ KST = dt.timezone(dt.timedelta(hours=9))
 REQUIRED_FIELDS = ("id", "title", "channel", "views", "timestamp", "url")
 
 
-def latest_data_file():
-    files = sorted((ROOT / "data").glob("*.json"))
-    files = [f for f in files if not f.name.endswith(".verify.json")]
-    if not files:
-        sys.exit("no data files found — run scripts/build.py first")
-    return files[-1]
+def target_data_file():
+    """The file for the date this run is about — the same date build.py used.
+
+    Picking the alphabetically last file instead looks right every normal
+    morning (the newest date is the newest file) and is wrong the moment a past
+    date is rebuilt: collecting 09-12 while 09-13 exists verified 09-13 and left
+    09-12 unchecked and unpublished. All three scripts derive the date the same
+    way so they cannot disagree.
+    """
+    override = os.environ.get("TARGET_DATE", "").strip()
+    day = (
+        dt.date.fromisoformat(override)
+        if override
+        else (dt.datetime.now(KST) - dt.timedelta(days=1)).date()
+    )
+    path = ROOT / "data" / f"{day.isoformat()}.json"
+    if not path.exists():
+        sys.exit(f"{path.name} not found — run scripts/build.py first")
+    return path
 
 
 def check(report):
@@ -132,7 +146,7 @@ def check(report):
 
 
 def main():
-    path = Path(sys.argv[1]) if len(sys.argv) > 1 else latest_data_file()
+    path = Path(sys.argv[1]) if len(sys.argv) > 1 else target_data_file()
     report = json.loads(path.read_text(encoding="utf-8"))
     hard, soft = check(report)
 

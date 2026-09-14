@@ -57,11 +57,13 @@ jobs:
       # overwritten and yesterday's published page stays live.
       - name: Verify
         env:
+          TARGET_DATE: ${{ inputs.target_date }}
           PYTHONIOENCODING: utf-8
         run: python scripts/verify.py
 
       - name: Render
         env:
+          TARGET_DATE: ${{ inputs.target_date }}
           PYTHONIOENCODING: utf-8
         run: python scripts/render.py
 

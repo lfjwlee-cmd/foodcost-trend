@@ -9,6 +9,7 @@ Usage: python scripts/render.py [data/<date>.json]
 
 import json
 import html
+import os
 import sys
 import datetime as dt
 from pathlib import Path
@@ -264,10 +265,17 @@ def main():
     if len(sys.argv) > 1:
         path = Path(sys.argv[1])
     else:
-        files = sorted(p for p in data_dir.glob("*.json") if not p.name.endswith(".verify.json"))
-        if not files:
-            sys.exit("no data files found — run scripts/build.py first")
-        path = files[-1]
+        # Same date rule as build.py and verify.py — see verify.target_data_file
+        # for why "the last file on disk" is the wrong default.
+        override = os.environ.get("TARGET_DATE", "").strip()
+        day = (
+            dt.date.fromisoformat(override)
+            if override
+            else (dt.datetime.now(KST) - dt.timedelta(days=1)).date()
+        )
+        path = data_dir / f"{day.isoformat()}.json"
+        if not path.exists():
+            sys.exit(f"{path.name} not found — run scripts/build.py first")
 
     report = json.loads(path.read_text(encoding="utf-8"))
     vpath = path.with_suffix(".verify.json")
@@ -280,12 +288,30 @@ def main():
     date = report["date"]
     docs, archive = ROOT / "docs", ROOT / "docs" / "archive"
     archive.mkdir(parents=True, exist_ok=True)
-    (docs / "index.html").write_text(render(report, verify), encoding="utf-8")
     (archive / f"{date}.html").write_text(render(report, verify, "./"), encoding="utf-8")
 
     dates = sorted(
         (p.stem for p in data_dir.glob("*.json") if len(p.stem) == 10), reverse=True
     )
+
+    # The front page always shows the newest date on hand, not whichever date
+    # this run happened to build. Backfilling an older day should add an archive
+    # entry, not roll the front page backwards.
+    newest = dates[0] if dates else date
+    if newest == date:
+        (docs / "index.html").write_text(render(report, verify), encoding="utf-8")
+    else:
+        newest_path = data_dir / f"{newest}.json"
+        newest_verify = newest_path.with_suffix(".verify.json")
+        if newest_verify.exists():
+            (docs / "index.html").write_text(
+                render(
+                    json.loads(newest_path.read_text(encoding="utf-8")),
+                    json.loads(newest_verify.read_text(encoding="utf-8")),
+                ),
+                encoding="utf-8",
+            )
+            print(f"front page left on {newest} (newer than the {date} build)")
     rows = "\n".join(f'<li><a href="./{d}.html">{d}</a></li>' for d in dates)
     (archive / "index.html").write_text(
         f"""<!doctype html><html lang="ko"><head><meta charset="utf-8">
