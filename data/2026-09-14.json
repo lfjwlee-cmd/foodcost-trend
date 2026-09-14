@@ -1,0 +1,54 @@
+{
+  "date": "2026-09-14",
+  "generatedAt": "2026-09-14T00:53:17+00:00",
+  "engine": "YouTube Data API",
+  "keywords": [
+    "신메뉴",
+    "이색메뉴",
+    "신상 디저트",
+    "편의점 신상",
+    "핫플 디저트",
+    "인생맛집"
+  ],
+  "viewThreshold": 1000,
+  "candidateCount": 14,
+  "qualifiedCount": 2,
+  "fetchAttempts": 14,
+  "failedKeywords": [],
+  "rejected": {
+    "date": 0,
+    "views": 12,
+    "relevance": 0,
+    "unverifiable": 0
+  },
+  "items": [
+    {
+      "id": "E7OCy66ntas",
+      "title": "깡자 아주 잘했어 내일은 신메뉴로 먹자 ♡♡♡",
+      "channel": "장수와 냥들의 일상",
+      "channel_id": "UC5JkfA0tZ7BgqrvYg8oWcFA",
+      "views": 1024,
+      "likes": 7,
+      "timestamp": 1789323866.0,
+      "description": "",
+      "url": "https://www.youtube.com/watch?v=E7OCy66ntas",
+      "thumbnail": "https://i.ytimg.com/vi/E7OCy66ntas/hqdefault.jpg",
+      "brand": null,
+      "tier": "신메뉴·신상"
+    },
+    {
+      "id": "8lDY4m4Ry7c",
+      "title": "#광고 디저트39 신상 먹어봤어요! #디저트39 #디저트39신상",
+      "channel": "먹킷박스",
+      "channel_id": "UCPeYFcWJ506JMrlD2l_EVAg",
+      "views": 1004,
+      "likes": 3,
+      "timestamp": 1789313497.0,
+      "description": "",
+      "url": "https://www.youtube.com/watch?v=8lDY4m4Ry7c",
+      "thumbnail": "https://i.ytimg.com/vi/8lDY4m4Ry7c/hqdefault.jpg",
+      "brand": null,
+      "tier": "신메뉴·신상"
+    }
+  ]
+}
