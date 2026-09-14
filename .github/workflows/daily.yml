@@ -46,13 +46,9 @@ jobs:
             exit 1
           fi
 
-      # NAVER_* is optional: without it the Naver mention section is skipped
-      # and the page says so, rather than the run failing.
       - name: Collect
         env:
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
-          NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
-          NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
           TARGET_DATE: ${{ inputs.target_date }}
           PYTHONIOENCODING: utf-8
         run: python scripts/build.py

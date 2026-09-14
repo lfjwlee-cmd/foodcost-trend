@@ -427,18 +427,6 @@ def main():
     # With a key, use the official API (the only path that works from CI).
     # Without one, fall back to yt-dlp, which works fine from a home network.
     report = collect_api() if API_KEY else collect()
-
-    # Naver is a separate signal (mentions written, not views watched) and is
-    # optional: without keys the section simply says so.
-    try:
-        import naver
-
-        naver_block = naver.collect(report["date"])
-        if naver_block:
-            report["naver"] = naver_block
-    except Exception as exc:
-        print(f"::warning::naver section skipped: {exc}", file=sys.stderr)
-
     (ROOT / "data").mkdir(exist_ok=True)
     out = ROOT / "data" / f"{report['date']}.json"
     out.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")

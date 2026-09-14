@@ -69,26 +69,6 @@ YOUTUBE_API_KEY=xxx python scripts/build.py      # 공식 API로 수집
 
 GitHub에서는 Actions 탭 → "Daily Trend Menu Report" → Run workflow로 수동 실행할 수 있습니다.
 
-## 네이버 언급 집계 (선택)
-
-`NAVER_CLIENT_ID` / `NAVER_CLIENT_SECRET` 시크릿을 등록하면 켜집니다. 없으면 그 섹션만
-비활성으로 표시되고 나머지는 그대로 돕니다.
-
-1. https://developers.naver.com → 애플리케이션 등록 → **검색** API 선택
-2. 발급된 Client ID / Client Secret을 저장소 Secrets에 등록
-3. `config.json`의 `naverWatchTerms`에 추적할 브랜드·메뉴 키워드를 넣습니다
-
-**이 수치는 순위가 아니라 언급 건수입니다.** 네이버 검색 API가 돌려주는 필드는
-`title` · `link` · `description` · `bloggername` · `postdate`(카페는 `cafename`·`cafeurl` 추가)뿐이고,
-**조회수·좋아요·댓글 수는 제공하지 않습니다.** 그래서 유튜브처럼 정렬·하한을 걸 수 없고,
-"어제 이 브랜드가 블로그·카페에서 몇 번 언급됐나"만 셉니다. 유튜브가 "뭘 봤나"라면 이건
-"뭘 썼나"에 해당하는 다른 신호이므로, 리포트에서도 두 숫자를 섞지 않고 따로 보여줍니다.
-
-집계가 `100건+`로 표시되면 API 한 페이지(100건)를 채웠다는 뜻이며 실제로는 더 많습니다.
-
-> ⚠️ 네이버가 검색 API를 **NAVER API HUB**로 이전 중이며, 기존 Developers Center 키는
-> **2027-06-30**에 중지될 예정입니다. 그 전에 한 번 갈아타야 합니다.
-
 ## 인스타그램이 없는 이유
 
 인스타그램은 해시태그·키워드 검색이 로그인 없이 막혀 있고, 조회수도 비로그인 상태에서는

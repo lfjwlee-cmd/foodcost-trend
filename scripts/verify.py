@@ -128,35 +128,6 @@ def check(report):
                 f"[감사역] 인스타 '{item.get('url', '?')}'는 기준일 게시물인데 대체 항목으로 분류됨"
             )
 
-    # --- Naver mention counts. The one thing that must never happen here is a
-    # mention count being presented as, or compared with, a view count.
-    nv = report.get("naver")
-    if nv:
-        if nv.get("date") != report["date"]:
-            hard.append(
-                f"[감사역] 네이버 집계일({nv.get('date')})이 리포트 기준일({report['date']})과 다릅니다"
-            )
-        if nv.get("metric") != "언급 건수":
-            hard.append(
-                f"[감사역] 네이버 지표가 '언급 건수'가 아닙니다({nv.get('metric')}) "
-                "— 조회수로 오인될 수 있습니다"
-            )
-        for t in nv.get("terms") or []:
-            if not isinstance(t.get("count"), int):
-                hard.append(f"[감사역] 네이버 '{t.get('term')}' 언급 건수가 정수가 아닙니다")
-            if "views" in t or "likes" in t:
-                hard.append(
-                    f"[감사역] 네이버 '{t.get('term')}'에 조회수/좋아요 필드 사용 "
-                    "— 네이버 API는 해당 수치를 제공하지 않습니다"
-                )
-        if nv.get("failedTerms"):
-            soft.append(
-                f"[엔지니어] 네이버 조회 실패 {len(nv['failedTerms'])}건: "
-                f"{', '.join(nv['failedTerms'])}"
-            )
-        if not (nv.get("terms") or []):
-            soft.append("[마케팅] 네이버 언급이 한 건도 잡히지 않았습니다")
-
     return hard, soft
 
 
