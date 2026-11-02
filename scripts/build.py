@@ -185,22 +185,68 @@ def tier_of(title, description=""):
     return "푸드 콘텐츠"
 
 
-def brand_of(title):
-    """The registered brand a title actually mentions, or None.
+def brand_surface_forms():
+    """[(표기, 정식 브랜드명)], 긴 표기부터.
 
-    Plain substring matching is right for Hangul, which has no word boundaries,
-    and wrong for short ASCII tags: "CU" matches inside "cup", "cute" and
-    "culture", which are not rare in Korean titles that mix in English. That is
-    the same class of false positive that "냥" inside "그냥" would cause, so
-    ASCII tags require word boundaries.
+    config의 brandTags는 {정식명: [별칭]} 이거나, 예전처럼 문자열 목록일 수도
+    있다(그때는 각 항목이 곧 정식명이다).
+
+    긴 표기부터 대조하는 것이 핵심이다. "GS"와 "GS25"는 둘 다 GS25를 가리키는데
+    config에 적힌 순서대로 훑으면 "GS25 신상"이 짧은 "GS"에 먼저 걸린다.
     """
-    for b in CONFIG.get("brandTags", []):
-        if b.isascii():
-            if re.search(rf"(?<![A-Za-z0-9]){re.escape(b)}(?![A-Za-z0-9])", title, re.I):
-                return b
-        elif b.lower() in title.lower():
-            return b
+    tags = CONFIG.get("brandTags", [])
+    if isinstance(tags, dict):
+        pairs = [
+            (form, canon)
+            for canon, aliases in tags.items()
+            for form in (canon, *aliases)
+        ]
+    else:
+        pairs = [(t, t) for t in tags]
+    return sorted(pairs, key=lambda p: -len(p[0]))
+
+
+def brand_of(title):
+    """제목이 실제로 언급한 등록 브랜드, 없으면 None.
+
+    한글은 띄어쓰기가 단어 경계를 보장하지 않으므로 부분 문자열 대조가 맞고,
+    짧은 ASCII 태그에는 틀리다. "CU"는 "cup", "cute", "culture" 안에 들어 있고
+    이런 단어는 영어를 섞는 한국어 제목에서 드물지 않다. "그냥" 안의 "냥"과 같은
+    종류의 오탐이라, ASCII 표기는 단어 경계를 요구한다.
+
+    제목은 정식명이 아니라 약칭을 쓴다 — "투썸플레이스"가 아니라 "투썸"이라고
+    적는다. 그래서 별칭까지 대조하되 결과는 정식명으로 돌려준다. 실측: 정식명만
+    보던 때 한 주 70건 중 6건만 잡혔다.
+    """
+    for form, canon in brand_surface_forms():
+        if form.isascii():
+            if re.search(rf"(?<![A-Za-z0-9]){re.escape(form)}(?![A-Za-z0-9])", title, re.I):
+                return canon
+        elif form.lower() in title.lower():
+            return canon
     return None
+
+
+def brands_in(title):
+    """제목이 언급한 모든 등록 브랜드 (정식명, 등장 순서).
+
+    brand_of는 카드에 칩 하나를 붙이려고 첫 브랜드만 돌려준다. 주간 집계는
+    다르다 — "GS편의점 신상 두찜 실비김치 찜닭덮밥"은 GS25와 두찜 양쪽의
+    언급이고, 한쪽만 세면 브랜드 빈도가 조용히 틀어진다.
+    """
+    found = {}
+    for form, canon in brand_surface_forms():
+        if canon in found:
+            continue
+        if form.isascii():
+            hit = re.search(rf"(?<![A-Za-z0-9]){re.escape(form)}(?![A-Za-z0-9])", title, re.I)
+            if hit:
+                found[canon] = hit.start()
+        else:
+            at = title.lower().find(form.lower())
+            if at >= 0:
+                found[canon] = at
+    return [b for b, _ in sorted(found.items(), key=lambda kv: kv[1])]
 
 
 def api_get(endpoint, params):
