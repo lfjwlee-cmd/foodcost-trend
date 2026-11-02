@@ -58,6 +58,26 @@ def _build():
 BUILD = _build()
 
 
+def _naver():
+    """Loaded through the same path trick; returns None if the file is absent."""
+    try:
+        spec = importlib.util.spec_from_file_location("naver", ROOT / "scripts" / "naver.py")
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod
+    except Exception:
+        return None
+
+
+def event_label(e):
+    """The name shown on the page — and the exact string queried on Naver, so
+    the two columns of one row are never about different things."""
+    return (e["brand"] + " " if e["brand"] else "") + e["gram"]
+
+
+_NV = _naver()
+
+
 def esc(s):
     return html.escape(str(s), quote=True)
 
@@ -229,7 +249,8 @@ line-height:1.1;margin:0}
 .head-meta a{color:var(--accent);text-decoration:none;font-weight:700}
 .lede{font-size:clamp(17px,2.4vw,22px);line-height:1.5;font-weight:700;margin:0 0 18px}
 .lede b{color:var(--accent)}
-.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:30px}
+.tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:30px}
+@media (max-width:980px){.tiles{grid-template-columns:repeat(2,1fr)}}
 .tile{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;
 min-width:0}
 .tile .k{font-size:12px;font-weight:700;color:var(--ink-dim);margin-bottom:5px}
@@ -242,7 +263,7 @@ h2.section:first-of-type{margin-top:0}
 p.hint{font-size:12.5px;color:var(--ink-dim);margin:0 0 14px;line-height:1.6}
 .ev{border:1px solid var(--line);border-radius:12px;background:var(--surface);margin-bottom:8px}
 .ev>summary{list-style:none;cursor:pointer;display:grid;align-items:center;gap:12px;padding:12px 14px;
-grid-template-columns:26px minmax(0,1.3fr) minmax(70px,1fr) 52px auto 86px}
+grid-template-columns:26px minmax(0,1.3fr) minmax(70px,1fr) 52px auto auto}
 .ev>summary::-webkit-details-marker{display:none}
 .ev>summary:hover{background:var(--surface-2)}
 .ev .rk{font-family:'Black Han Sans',sans-serif;font-size:17px;color:var(--ink-dim);text-align:center}
@@ -254,8 +275,13 @@ border-radius:999px;padding:1px 7px;margin-left:6px;vertical-align:2px}
 .ev .bar{height:9px;background:var(--surface-2);border-radius:999px;overflow:hidden}
 .ev .bar i{display:block;height:100%;background:var(--accent);border-radius:999px}
 .ev .n{font-size:13px;font-weight:900;font-variant-numeric:tabular-nums}
-.ev .vw{font-size:13px;font-weight:900;color:var(--gold);text-align:right;
-font-variant-numeric:tabular-nums}
+.ev .mx{display:flex;gap:14px;justify-content:flex-end}
+.ev .mt{text-align:right;min-width:52px}
+.ev .mt b{display:block;font-size:13px;font-weight:900;font-variant-numeric:tabular-nums}
+.ev .mt i{display:block;font-style:normal;font-size:10px;color:var(--ink-dim);font-weight:700}
+.ev .mt.vw b{color:var(--gold)}
+.ev .mt.nv b{color:var(--ink)}
+.ev .mt.nv b.cap::after{content:"+";font-size:11px}
 .strip{display:flex;gap:2px}
 .strip i{width:15px;height:20px;border-radius:3px;background:var(--s0);display:block}
 .s1{background:var(--s1)!important}.s2{background:var(--s2)!important}
@@ -298,7 +324,7 @@ color:var(--ink-dim);line-height:1.75}
   .ev>summary{display:flex;flex-wrap:wrap;align-items:center;gap:9px}
   .ev .rk{flex:0 0 18px;text-align:left}
   .ev .nm{flex:1 1 0;min-width:0}
-  .ev .vw{flex:0 0 auto;order:3}
+  .ev .mx{flex:0 0 auto;order:3;gap:12px}
   .ev .bar{flex:1 1 100%;order:4}
   .ev .n{order:5}
   .strip{order:6;margin-left:auto}
@@ -319,7 +345,7 @@ def step(n):
     return (0, 2, 3)[n] if n < 3 else 4
 
 
-def event_rows(events, items, days, new_grams):
+def event_rows(events, items, days, new_grams, naver):
     top_n = max(e["count"] for e in events)
     out = []
     for rank, e in enumerate(events, 1):
@@ -337,6 +363,13 @@ def event_rows(events, items, days, new_grams):
             f'{esc(long_label(items[x]["day"]))}</span></li>'
             for x in sorted(e["idx"], key=lambda x: -(items[x].get("views") or 0))
         )
+        nv = (naver or {}).get(event_label(e))
+        nv_cell = (
+            f'<span class="mt nv"><b class="{"cap" if nv["capped"] else ""}">'
+            f'{fmt(nv["count"])}</b><i>블로그</i></span>'
+            if nv
+            else ""
+        )
         width = e["count"] / top_n * 100
         out.append(f"""
     <details class="ev">
@@ -346,7 +379,7 @@ def event_rows(events, items, days, new_grams):
         <span class="bar" title="{e['count']}건"><i style="width:{width:.0f}%"></i></span>
         <span class="n">{e['count']}건</span>
         <span class="strip">{strip}</span>
-        <span class="vw">{fmt(e['views'])}</span>
+        <span class="mx"><span class="mt vw"><b>{fmt(e['views'])}</b><i>조회수</i></span>{nv_cell}</span>
       </summary>
       <ul>{vids}</ul>
     </details>""")
@@ -388,7 +421,7 @@ def heatmap(items, days):
 </table></div>"""
 
 
-def render(items, days, events, solo, skipped, new_grams, prior_days):
+def render(items, days, events, solo, skipped, new_grams, prior_days, naver):
     total_views = sum(i.get("views") or 0 for i in items)
     best = max(items, key=lambda i: i.get("views") or 0) if items else None
     if events:
@@ -402,12 +435,27 @@ def render(items, days, events, solo, skipped, new_grams, prior_days):
         lede = "이번 주에는 두 채널 이상이 함께 다룬 메뉴가 없었습니다 — 전부 단발이었습니다."
 
     grouped = sum(e["count"] for e in events)
+    # isShort only exists on data collected after this field was added, so a
+    # window that reaches back before then would silently read as 0% short.
+    # Count the measurable subset and say how big it is.
+    known = [i for i in items if i.get("isShort") is not None]
+    shorts = sum(1 for i in known if i["isShort"])
+    short_pct = f"{shorts / len(known):.0%}" if known else "—"
+    short_note = (
+        f"{len(known)}건 중 {shorts}건"
+        + ("" if len(known) == len(items) else f" · 길이 미기록 {len(items) - len(known)}건 제외")
+        if known
+        else "이 기간 데이터에는 영상 길이가 없습니다"
+    )
     tiles = f"""
 <div class="tiles">
   <div class="tile"><div class="k">수집</div><div class="v">{len(items)}건</div>
     <div class="s">{len(days)}일 · 누적 조회수 {fmt(total_views)}회</div></div>
   <div class="tile"><div class="k">반복 등장한 메뉴</div><div class="v">{len(events)}건</div>
     <div class="s">영상 {grouped}건이 여기 묶임 · 나머지 {len(solo)}건은 단발</div></div>
+  <div class="tile"><div class="k">60초 이하 짧은 영상</div>
+    <div class="v">{short_pct}</div>
+    <div class="s">{short_note}</div></div>
   <div class="tile"><div class="k">최고 조회</div>
     <div class="v">{fmt(best['views']) if best else 0}회</div>
     <div class="s">{esc(best['title']) if best else '—'}</div></div>
@@ -418,7 +466,7 @@ def render(items, days, events, solo, skipped, new_grams, prior_days):
         '<i class="s3"></i>2건 <i class="s4"></i>3건 이상</p>'
     )
     events_html = (
-        event_rows(events, items, days, new_grams) + legend
+        event_rows(events, items, days, new_grams, naver) + legend
         if events
         else '<p class="hint">두 채널 이상이 함께 다룬 메뉴가 없습니다.</p>'
     )
@@ -439,6 +487,18 @@ def render(items, days, events, solo, skipped, new_grams, prior_days):
         if prior_days >= 3
         else f"직전 기간 데이터가 {prior_days}일치뿐이라 NEW 표시는 생략했습니다."
     )
+    if naver is None:
+        naver_note = (
+            "네이버 자격증명(NAVER_CLIENT_ID/SECRET)이 없어 이번 집계에서는 뺐습니다. "
+            "열이 아예 보이지 않는 것은 0건이라는 뜻이 아닙니다."
+        )
+    else:
+        naver_note = (
+            "같은 기간 네이버 블로그에 올라온 글 수입니다. 검색 API의 total은 역대 "
+            f"전체 건수라 기간을 못 가르므로, 날짜순으로 최대 {_NV.MAX_PAGES * _NV.PER_PAGE}건까지 "
+            "훑어 기간 안에 든 것만 셉니다. 숫자 뒤의 +는 거기서 잘렸다는 뜻으로, 실제는 "
+            "더 많습니다. 카페 검색에는 날짜 필드가 없어 블로그만 집계합니다."
+        )
     title = f"{CONFIG['siteTitle']} · 주간 롤업 {days[0]}~{days[-1]}"
     return f"""<!doctype html>
 <html lang="ko"><head>
@@ -479,6 +539,11 @@ def render(items, days, events, solo, skipped, new_grams, prior_days):
   메뉴도 묶입니다. 한 영상은 가장 강한 사건 하나에만 들어갑니다 — 여러 브랜드를 한꺼번에
   나열하는 '이번 주 신상털이' 류 영상이 모든 그룹에 끼어들어 브랜드를 잘못 붙이기 때문입니다.</p>
   <p><b>NEW 표시:</b> {esc(new_note)}</p>
+  <p><b>블로그 열:</b> {esc(naver_note)}</p>
+  <p><b>짧은 영상:</b> 길이 {CONFIG.get('shortMaxSeconds', 60)}초 이하이거나 제목·설명에
+  #shorts 가 붙은 것을 셉니다. 유튜브가 쇼츠 상한을 3분으로 올린 뒤로 길이만으로는
+  쇼츠인지 증명할 수 없고 API도 /shorts/ 주소를 주지 않아, '쇼츠'라고 단정하지 않고
+  짧은 영상이라고만 적습니다.</p>
   {skip_note}
   <p>생성 {esc(dt.datetime.now(KST).isoformat(timespec='seconds'))}</p>
 </details>
@@ -493,10 +558,15 @@ def main():
     events, solo_idx = group_events(items)
     new_grams, prior_days = prior_grams(present)
     solo = [items[x] for x in solo_idx]
+    naver = None
+    if _NV and events:
+        naver = _NV.mentions([event_label(e) for e in events], present[0], present[-1])
+        if naver is None:
+            print("  네이버 열 생략 — 자격증명이 없거나 호출이 실패했습니다")
     out = ROOT / "docs" / "weekly.html"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(
-        render(items, present, events, solo, skipped, new_grams, prior_days),
+        render(items, present, events, solo, skipped, new_grams, prior_days, naver),
         encoding="utf-8",
     )
     print(f"주간 롤업 {present[0]}~{present[-1]} · {len(items)}건 "

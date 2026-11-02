@@ -44,6 +44,8 @@ def _load(name):
 
 build = _load("build")
 verify = _load("verify")
+rollup = _load("rollup")
+naver = _load("naver")
 
 BASE = json.loads((ROOT / "tests" / "fixture.json").read_text(encoding="utf-8"))
 results = []
@@ -118,10 +120,86 @@ case("브랜드 — cup/cute 안의 CU는 무시", build.brand_of("아이스 fre
 case("등급 — 출시어가 있으면 신메뉴", build.tier_of("신메뉴 출시") == "신메뉴·신상")
 case("등급 — 없으면 푸드 콘텐츠", build.tier_of("떡볶이 먹방") == "푸드 콘텐츠")
 
-print("\n5. 같은 입력 = 같은 판정 (재현성)")
+case("브랜드 — 약칭도 정식명으로", build.brand_of("투썸 신메뉴 밤생크림") == "투썸플레이스")
+case("브랜드 — 긴 표기가 먼저", build.brand_of("GS25 신상 김밥") == "GS25")
+case("브랜드 — 짧은 조각은 안 넣는다(메가톤)", build.brand_of("메가톤급 신메뉴") is None)
+case("브랜드 — 한 제목의 여러 브랜드를 모두",
+     build.brands_in("GS편의점 신상 두찜 실비김치") == ["GS25", "두찜"])
+
+print("\n5. 짧은 영상 판정")
+case("길이 — ISO8601 해석", build.parse_duration("PT1M23S") == 83)
+case("길이 — 형식이 깨지면 None", build.parse_duration("garbage") is None)
+case("숏폼 — 기준 이하", build.is_short(45, "신상 리뷰") is True)
+case("숏폼 — #shorts 는 길이를 이긴다", build.is_short(200, "신상 #shorts") is True)
+case("숏폼 — 길면 아니다", build.is_short(200, "일반 먹방") is False)
+case("숏폼 — 길이를 모르면 단정하지 않는다", build.is_short(None, "신상 리뷰") is False)
+
+print("\n6. 주간 묶음 규칙")
+
+
+def _vid(n, title, channel, day, views=1000):
+    return {"id": f"v{n}", "title": title, "channel": channel, "day": day,
+            "views": views, "url": "u", "timestamp": 0}
+
+
+one_channel = [
+    _vid(1, "샤브올데이 가을 신메뉴 바다편 15초", "샤브올데이", "2026-09-18"),
+    _vid(2, "샤브올데이 가을 신메뉴 바다편 60초", "샤브올데이", "2026-09-18"),
+]
+ev, _ = rollup.group_events(one_channel)
+case("한 채널이 두 번 올린 건 사건이 아니다", ev == [])
+
+two_channels = [
+    _vid(1, "엽떡 더착한맛 먹어봄", "채널가", "2026-09-16"),
+    _vid(2, "엽떡 더 착한 맛 솔직리뷰", "채널나", "2026-09-17"),
+]
+ev, solo = rollup.group_events(two_channels)
+case("띄어쓰기가 달라도 같은 메뉴", len(ev) == 1 and ev[0]["count"] == 2)
+case("브랜드가 과반이면 라벨", ev and ev[0]["brand"] == "엽떡")
+
+mixed = [
+    _vid(1, "뚜레쥬르 하트티라미수 신상", "채널가", "2026-09-17"),
+    _vid(2, "밤 티라미수 신메뉴", "채널나", "2026-09-19"),
+]
+ev, _ = rollup.group_events(mixed)
+case("브랜드가 과반이 아니면 라벨 없음", ev and ev[0]["brand"] is None)
+
+roundup = [
+    _vid(1, "엽떡 더착한맛", "채널가", "2026-09-16"),
+    _vid(2, "엽떡 더착한맛 리뷰", "채널나", "2026-09-17"),
+    _vid(3, "엽떡 더착한맛 쇼콜라 말차하임 신상털이", "채널다", "2026-09-20"),
+    _vid(4, "쇼콜라 말차하임 디저트", "채널라", "2026-09-21"),
+]
+ev, _ = rollup.group_events(roundup)
+case("모아보기 영상은 한 사건에만 들어간다",
+     sum(e["count"] for e in ev) <= len(roundup))
+
+print("\n7. 네이버 언급량 집계 (네트워크 없이)")
+
+PAGES = {
+    1: {"total": 9999, "items": [
+        {"postdate": "20261101"}, {"postdate": "20261029"},
+        {"postdate": "20261026"}, {"postdate": "20261020"},
+    ]},
+}
+r = naver.count_in_window("q", "2026-10-26", "2026-11-01",
+                          fetch=lambda q, start=1: PAGES[1], max_pages=1)
+case("기간 안의 글만 센다", r["count"] == 3)
+case("기간보다 오래된 글에서 멈춘다", r["scanned"] == 4)
+case("끝까지 안 갔으면 잘린 표시 없음", r["capped"] is False)
+
+full = {"total": 9999, "items": [{"postdate": "20261101"}] * naver.PER_PAGE}
+r2 = naver.count_in_window("q", "2026-10-26", "2026-11-01",
+                           fetch=lambda q, start=1: full, max_pages=2)
+case("페이지 한도에서 잘리면 표시한다", r2["capped"] is True)
+
+print("\n8. 같은 입력 = 같은 판정 (재현성)")
 a = verify.check(copy.deepcopy(BASE))
 b = verify.check(copy.deepcopy(BASE))
 case("검증을 두 번 돌려도 동일", a == b)
+g1, s1 = rollup.group_events(copy.deepcopy(roundup))
+g2, s2 = rollup.group_events(copy.deepcopy(roundup))
+case("주간 묶음을 두 번 돌려도 동일", (g1, s1) == (g2, s2))
 
 failed = [n for n, ok, _ in results if not ok]
 print(f"\n{len(results) - len(failed)}/{len(results)} 통과")

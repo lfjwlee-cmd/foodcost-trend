@@ -139,11 +139,48 @@ def fetch_meta(video_id):
         "channel_id": info.get("channel_id") or "",
         "views": info.get("view_count") or 0,
         "likes": info.get("like_count"),
+        "duration": int(info["duration"]) if info.get("duration") else None,
         "timestamp": ts,
         "description": (info.get("description") or "")[:400],
         "url": f"https://www.youtube.com/watch?v={info.get('id')}",
         "thumbnail": f"https://i.ytimg.com/vi/{info.get('id')}/hqdefault.jpg",
     }
+
+
+def parse_duration(iso):
+    """YouTube's ISO-8601 clip length ("PT1M23S") in seconds, or None.
+
+    Only the API returns this shape; yt-dlp already hands over plain seconds.
+    """
+    if not iso:
+        return None
+    m = re.fullmatch(
+        r"P(?:(\d+)D)?T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+(?:\.\d+)?)S)?", iso.strip()
+    )
+    if not m:
+        return None
+    d, h, mi, sec = (float(x) if x else 0 for x in m.groups())
+    return int(d * 86400 + h * 3600 + mi * 60 + sec)
+
+
+def is_short(duration, *texts):
+    """Whether this is short-form.
+
+    Two signals, because neither is sufficient alone. YouTube stopped being a
+    reliable "<= 60s means Shorts" platform when it raised the Shorts ceiling to
+    three minutes, and the API returns an ordinary watch URL either way — the
+    /shorts/ path never appears. Conversely a creator who tags #shorts is
+    telling us directly. So: tagged, or under the configured ceiling.
+
+    The report says "60초 이하 짧은 영상" rather than claiming to detect Shorts
+    exactly, because from this data that distinction cannot be proven.
+    """
+    hay = " ".join(t for t in texts if t).lower()
+    if "#shorts" in hay or "#쇼츠" in hay:
+        return True
+    if duration is None:
+        return False
+    return duration <= CONFIG.get("shortMaxSeconds", 60)
 
 
 def is_blocked_channel(channel):
@@ -315,7 +352,12 @@ def collect_api():
         batch = ids[i : i + 50]
         attempts += len(batch)
         try:
-            data = api_get("videos", {"part": "snippet,statistics", "id": ",".join(batch)})
+            data = api_get(
+                "videos",
+                # contentDetails is free here — videos.list costs 1 unit per
+                # call whatever parts are asked for.
+                {"part": "snippet,statistics,contentDetails", "id": ",".join(batch)},
+            )
         except Exception as exc:
             rejected["unverifiable"] += len(batch)
             print(f"  videos.list batch failed: {exc}", file=sys.stderr)
@@ -324,6 +366,7 @@ def collect_api():
         rejected["unverifiable"] += len(set(batch) - returned)
         for it in data.get("items", []):
             sn, st = it["snippet"], it.get("statistics", {})
+            secs = parse_duration((it.get("contentDetails") or {}).get("duration"))
             ts = dt.datetime.fromisoformat(sn["publishedAt"].replace("Z", "+00:00")).timestamp()
             # Re-check the window ourselves rather than trusting the query alone.
             if not (start.timestamp() <= ts < end.timestamp()):
@@ -347,6 +390,8 @@ def collect_api():
                     "channel_id": sn.get("channelId", ""),
                     "views": views,
                     "likes": int(st["likeCount"]) if "likeCount" in st else None,
+                    "duration": secs,
+                    "isShort": is_short(secs, sn.get("title", ""), desc),
                     "timestamp": ts,
                     "description": desc,
                     "url": f"https://www.youtube.com/watch?v={it['id']}",
@@ -463,6 +508,9 @@ def collect():
         ):
             rejected["relevance"] += 1
             continue
+        meta["isShort"] = is_short(
+            meta.get("duration"), meta["title"], meta.get("description")
+        )
         meta["brand"] = brand_of(meta["title"])
         meta["tier"] = tier_of(meta["title"], meta["description"])
         kept.append(meta)
