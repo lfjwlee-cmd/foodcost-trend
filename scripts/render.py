@@ -25,6 +25,8 @@ for _s in (sys.stdout, sys.stderr):
     except Exception:
         pass
 KST = dt.timezone(dt.timedelta(hours=9))
+WEEKDAY = "월화수목금토일"
+STRIP = 13  # dates shown inline; the rest stay one click away in the archive
 
 
 def esc(s):
@@ -38,6 +40,65 @@ def fmt(n):
 def kst_label(iso_date):
     d = dt.date.fromisoformat(iso_date)
     return f"{d.month}월 {d.day}일"
+
+
+def datebar(dates, current, in_archive):
+    """Every nearby date, one click away, on every page.
+
+    Getting from Tuesday to Monday used to be three clicks through a bare list
+    of fifty-one filenames — today's page, 지난 리포트, then hunt for the date.
+    Reading yesterday against the day before is the single most common thing
+    anyone does here, so the dates belong on the page itself.
+
+    The window follows the page being viewed rather than always showing the
+    newest dates, so paging back through October does not keep scrolling the
+    strip back to November. ← and → work too.
+    """
+    here = f"./{{}}.html" if in_archive else "./archive/{}.html"
+    home = "../" if in_archive else "./"
+    try:
+        at = dates.index(current)
+    except ValueError:
+        at = 0
+    half = STRIP // 2
+    start = max(0, min(at - half, len(dates) - STRIP))
+    shown = dates[start:start + STRIP]
+
+    chips = []
+    for d in shown:
+        day = dt.date.fromisoformat(d)
+        cls = "d now" if d == current else "d"
+        href = "#" if d == current else here.format(d)
+        chips.append(
+            f'<a class="{cls}" href="{esc(href)}" data-date="{esc(d)}">'
+            f'{day.month}/{day.day}<i>{WEEKDAY[day.weekday()]}</i></a>'
+        )
+
+    # dates is newest-first, so the *older* page is the next index along.
+    older = dates[at + 1] if at + 1 < len(dates) else None
+    newer = dates[at - 1] if at > 0 else None
+    prev_a = (
+        f'<a class="arrow" href="{esc(here.format(older))}" id="older" title="이전 날짜">&#8249;</a>'
+        if older else '<span class="arrow off">&#8249;</span>'
+    )
+    next_a = (
+        f'<a class="arrow" href="{esc(here.format(newer))}" id="newer" title="다음 날짜">&#8250;</a>'
+        if newer else '<span class="arrow off">&#8250;</span>'
+    )
+    return f"""<nav class="datebar">{prev_a}
+  <span class="dates">{"".join(reversed(chips))}</span>
+  {next_a}
+  <a class="all" href="{esc(home)}archive/">전체 {len(dates)}일</a>
+</nav>
+<script>
+document.addEventListener("keydown", function (e) {{
+  if (e.target.closest("input,textarea")) return;
+  var go = e.key === "ArrowLeft" ? "older" : e.key === "ArrowRight" ? "newer" : null;
+  var el = go && document.getElementById(go);
+  if (el) location.href = el.href;
+}});
+document.querySelector(".datebar .now")?.scrollIntoView({{block: "nearest", inline: "center"}});
+</script>"""
 
 
 def card(item, rank):
@@ -84,6 +145,26 @@ border-radius:10px;background:var(--surface-2);border:1px solid var(--line);font
 .verify .tag.pass{background:var(--ok);color:#fff}
 .verify .tag.warn{background:var(--warn);color:#fff}
 .verify ul{margin:0;padding-left:18px;color:var(--ink-dim);flex:1 1 100%}
+.datebar{display:flex;align-items:center;gap:6px;margin-bottom:18px}
+.datebar .dates{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;flex:1;
+scroll-snap-type:x proximity}
+.datebar .dates::-webkit-scrollbar{display:none}
+.datebar a{flex:0 0 auto;text-decoration:none;scroll-snap-align:center}
+.datebar .d{font-size:12px;font-weight:700;color:var(--ink-dim);background:var(--surface);
+border:1px solid var(--line);border-radius:9px;padding:5px 9px;line-height:1.25;text-align:center;
+font-variant-numeric:tabular-nums;display:block}
+.datebar .d i{display:block;font-style:normal;font-size:10px;opacity:.65;font-weight:400}
+.datebar .d:hover{border-color:var(--accent);color:var(--ink)}
+.datebar .d.now{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.datebar .d.now i{opacity:.8}
+.datebar .arrow{font-size:16px;font-weight:900;color:var(--ink-dim);background:var(--surface);
+border:1px solid var(--line);border-radius:9px;padding:9px 11px;line-height:1}
+.datebar .arrow:hover{border-color:var(--accent);color:var(--accent)}
+.datebar .arrow.off{opacity:.3;pointer-events:none}
+.datebar .all{font-size:12px;font-weight:700;color:var(--ink-dim);white-space:nowrap;
+border-bottom:1px solid var(--line);padding-bottom:2px}
+.datebar .all:hover{color:var(--accent)}
+@media (max-width:640px){.datebar .all{display:none}}
 .filter-bar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:24px}
 .chip{font-size:12.5px;font-weight:700;padding:7px 14px;border-radius:999px;
 background:var(--surface-2);border:1px solid var(--line);color:var(--ink-dim)}
@@ -202,7 +283,7 @@ def verify_panel(v):
     {notes}</div>"""
 
 
-def render(report, verify=None, archive_link="./archive/"):
+def render(report, verify, dates, in_archive=False):
     items = report["items"]
     grid = (
         f'<div class="grid">{"".join(card(it, i + 1) for i, it in enumerate(items))}</div>'
@@ -237,9 +318,10 @@ def render(report, verify=None, archive_link="./archive/"):
   <div class="head-meta">
     기준일 <b>{esc(report['date'])} (KST)</b><br>
     최소 조회수 <b>{fmt(report['viewThreshold'])}회</b><br>
-    <a href="{archive_link}">지난 리포트 →</a>
+    <a href="{'../' if in_archive else './'}weekly.html">주간 롤업 →</a>
   </div>
 </header>
+{datebar(dates, report['date'], in_archive)}
 {verify_panel(verify)}
 <div class="filter-bar">
   <span class="chip">업로드일 <b>{esc(report['date'])} 정확 일치</b></span>
@@ -290,18 +372,41 @@ def main():
     date = report["date"]
     docs, archive = ROOT / "docs", ROOT / "docs" / "archive"
     archive.mkdir(parents=True, exist_ok=True)
-    (archive / f"{date}.html").write_text(render(report, verify, "./"), encoding="utf-8")
 
+    # Needed before the first page is written: every page now carries the date
+    # strip, so each one has to know which dates exist.
     dates = sorted(
         (p.stem for p in data_dir.glob("*.json") if len(p.stem) == 10), reverse=True
     )
+    # Rewrite the newest pages, not just this run's. A page's strip is centred
+    # on its own date, so once a date has neighbours on both sides its window
+    # never shifts again — but a page written on the day it was newest has no
+    # forward arrow until a later run puts one there. That is bounded to the
+    # STRIP most recent pages; anything older is already final.
+    # RENDER_ALL=1 rebuilds every archive page, for when the layout itself
+    # changes and the old pages are stale.
+    refresh = dates if os.environ.get("RENDER_ALL") else dates[:STRIP]
+    if date not in refresh:
+        refresh = [date, *refresh]
+    for d in refresh:
+        dpath = data_dir / f"{d}.json"
+        vpath2 = dpath.with_suffix(".verify.json")
+        if not dpath.exists() or not vpath2.exists():
+            continue
+        v = json.loads(vpath2.read_text(encoding="utf-8"))
+        if not v.get("passed"):
+            continue
+        (archive / f"{d}.html").write_text(
+            render(json.loads(dpath.read_text(encoding="utf-8")), v, dates, in_archive=True),
+            encoding="utf-8",
+        )
 
     # The front page always shows the newest date on hand, not whichever date
     # this run happened to build. Backfilling an older day should add an archive
     # entry, not roll the front page backwards.
     newest = dates[0] if dates else date
     if newest == date:
-        (docs / "index.html").write_text(render(report, verify), encoding="utf-8")
+        (docs / "index.html").write_text(render(report, verify, dates), encoding="utf-8")
     else:
         newest_path = data_dir / f"{newest}.json"
         newest_verify = newest_path.with_suffix(".verify.json")
@@ -310,19 +415,53 @@ def main():
                 render(
                     json.loads(newest_path.read_text(encoding="utf-8")),
                     json.loads(newest_verify.read_text(encoding="utf-8")),
+                    dates,
                 ),
                 encoding="utf-8",
             )
             print(f"front page left on {newest} (newer than the {date} build)")
-    rows = "\n".join(f'<li><a href="./{d}.html">{d}</a></li>' for d in dates)
+    by_month = {}
+    for d in dates:
+        by_month.setdefault(d[:7], []).append(d)
+    months = "".join(
+        f"<h2>{int(m[5:7])}월 <span>{len(ds)}일</span></h2><div class=\"g\">"
+        + "".join(
+            f'<a href="./{d}.html">{int(d[8:])}'
+            f"<i>{WEEKDAY[dt.date.fromisoformat(d).weekday()]}</i></a>"
+            for d in sorted(ds)
+        )
+        + "</div>"
+        for m, ds in by_month.items()
+    )
     (archive / "index.html").write_text(
         f"""<!doctype html><html lang="ko"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{esc(CONFIG['siteTitle'])} · 지난 리포트</title>
-<style>body{{font-family:system-ui,sans-serif;max-width:640px;margin:40px auto;padding:0 20px}}
-a{{color:#e0451f;text-decoration:none;font-weight:700}} li{{margin:8px 0;font-size:15px}}</style>
-</head><body><h1>지난 리포트</h1><ul>{rows or "<li>아직 기록이 없습니다.</li>"}</ul>
-<p><a href="../">← 오늘 리포트</a></p></body></html>""",
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Gothic+A1:wght@400;700;900&display=swap">
+<style>
+:root{{--bg:#faf5ee;--surface:#fff;--line:#e6dac8;--ink:#241b12;--ink-dim:#7a6c58;--accent:#e0451f;--accent-ink:#fff7f0}}
+@media (prefers-color-scheme:dark){{:root{{--bg:#171210;--surface:#211a15;--line:#3a2d22;
+--ink:#f4ebdd;--ink-dim:#a99884;--accent:#ff6a3d;--accent-ink:#1a0f08}}}}
+*{{box-sizing:border-box}}
+body{{margin:0;background:var(--bg);color:var(--ink);font-family:'Gothic A1',system-ui,sans-serif;
+padding:32px clamp(16px,4vw,48px) 56px}}
+.wrap{{max-width:760px;margin:0 auto}}
+h1{{font-family:'Black Han Sans',sans-serif;font-weight:400;font-size:30px;margin:0 0 6px}}
+.sub{{color:var(--ink-dim);font-size:13px;margin:0 0 26px}}
+.sub a{{color:var(--accent);text-decoration:none;font-weight:700}}
+h2{{font-size:15px;margin:26px 0 10px;display:flex;align-items:baseline;gap:8px}}
+h2 span{{font-size:12px;font-weight:400;color:var(--ink-dim)}}
+.g{{display:grid;grid-template-columns:repeat(auto-fill,minmax(56px,1fr));gap:6px}}
+.g a{{display:block;text-align:center;text-decoration:none;background:var(--surface);
+border:1px solid var(--line);border-radius:9px;padding:9px 0;color:var(--ink);
+font-weight:700;font-size:15px;font-variant-numeric:tabular-nums}}
+.g a i{{display:block;font-style:normal;font-size:10px;font-weight:400;color:var(--ink-dim)}}
+.g a:hover{{border-color:var(--accent);color:var(--accent)}}
+</style></head><body><div class="wrap">
+<h1>지난 리포트</h1>
+<p class="sub">{len(dates)}일치 · <a href="../">오늘 리포트</a> · <a href="../weekly.html">주간 롤업</a></p>
+{months or "<p>아직 기록이 없습니다.</p>"}
+</div></body></html>""",
         encoding="utf-8",
     )
     print(f"wrote docs/index.html, docs/archive/{date}.html, docs/archive/index.html")
