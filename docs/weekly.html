@@ -29,7 +29,8 @@ line-height:1.1;margin:0}
 .head-meta a{color:var(--accent);text-decoration:none;font-weight:700}
 .lede{font-size:clamp(17px,2.4vw,22px);line-height:1.5;font-weight:700;margin:0 0 18px}
 .lede b{color:var(--accent)}
-.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:30px}
+.tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:30px}
+@media (max-width:980px){.tiles{grid-template-columns:repeat(2,1fr)}}
 .tile{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;
 min-width:0}
 .tile .k{font-size:12px;font-weight:700;color:var(--ink-dim);margin-bottom:5px}
@@ -42,7 +43,7 @@ h2.section:first-of-type{margin-top:0}
 p.hint{font-size:12.5px;color:var(--ink-dim);margin:0 0 14px;line-height:1.6}
 .ev{border:1px solid var(--line);border-radius:12px;background:var(--surface);margin-bottom:8px}
 .ev>summary{list-style:none;cursor:pointer;display:grid;align-items:center;gap:12px;padding:12px 14px;
-grid-template-columns:26px minmax(0,1.3fr) minmax(70px,1fr) 52px auto 86px}
+grid-template-columns:26px minmax(0,1.3fr) minmax(70px,1fr) 52px auto auto}
 .ev>summary::-webkit-details-marker{display:none}
 .ev>summary:hover{background:var(--surface-2)}
 .ev .rk{font-family:'Black Han Sans',sans-serif;font-size:17px;color:var(--ink-dim);text-align:center}
@@ -54,8 +55,13 @@ border-radius:999px;padding:1px 7px;margin-left:6px;vertical-align:2px}
 .ev .bar{height:9px;background:var(--surface-2);border-radius:999px;overflow:hidden}
 .ev .bar i{display:block;height:100%;background:var(--accent);border-radius:999px}
 .ev .n{font-size:13px;font-weight:900;font-variant-numeric:tabular-nums}
-.ev .vw{font-size:13px;font-weight:900;color:var(--gold);text-align:right;
-font-variant-numeric:tabular-nums}
+.ev .mx{display:flex;gap:14px;justify-content:flex-end}
+.ev .mt{text-align:right;min-width:52px}
+.ev .mt b{display:block;font-size:13px;font-weight:900;font-variant-numeric:tabular-nums}
+.ev .mt i{display:block;font-style:normal;font-size:10px;color:var(--ink-dim);font-weight:700}
+.ev .mt.vw b{color:var(--gold)}
+.ev .mt.nv b{color:var(--ink)}
+.ev .mt.nv b.cap::after{content:"+";font-size:11px}
 .strip{display:flex;gap:2px}
 .strip i{width:15px;height:20px;border-radius:3px;background:var(--s0);display:block}
 .s1{background:var(--s1)!important}.s2{background:var(--s2)!important}
@@ -98,7 +104,7 @@ color:var(--ink-dim);line-height:1.75}
   .ev>summary{display:flex;flex-wrap:wrap;align-items:center;gap:9px}
   .ev .rk{flex:0 0 18px;text-align:left}
   .ev .nm{flex:1 1 0;min-width:0}
-  .ev .vw{flex:0 0 auto;order:3}
+  .ev .mx{flex:0 0 auto;order:3;gap:12px}
   .ev .bar{flex:1 1 100%;order:4}
   .ev .n{order:5}
   .strip{order:6;margin-left:auto}
@@ -123,6 +129,9 @@ color:var(--ink-dim);line-height:1.75}
     <div class="s">7일 · 누적 조회수 2,102,162회</div></div>
   <div class="tile"><div class="k">반복 등장한 메뉴</div><div class="v">7건</div>
     <div class="s">영상 16건이 여기 묶임 · 나머지 54건은 단발</div></div>
+  <div class="tile"><div class="k">60초 이하 짧은 영상</div>
+    <div class="v">—</div>
+    <div class="s">이 기간 데이터에는 영상 길이가 없습니다</div></div>
   <div class="tile"><div class="k">최고 조회</div>
     <div class="v">259,754회</div>
     <div class="s">SUB)bhc 신메뉴 알싹킹 먹방!🍗핫후라이드치킨 뿌링치즈볼까지 바삭끝판왕 치킨파티 Chicken Mukbang Asmr</div></div>
@@ -138,7 +147,7 @@ color:var(--ink-dim);line-height:1.75}
         <span class="bar" title="3건"><i style="width:100%"></i></span>
         <span class="n">3건</span>
         <span class="strip"><i class="s0" title="10월 26일(월) · 0건"></i><i class="s2" title="10월 27일(화) · 1건"></i><i class="s2" title="10월 28일(수) · 1건"></i><i class="s0" title="10월 29일(목) · 0건"></i><i class="s0" title="10월 30일(금) · 0건"></i><i class="s0" title="10월 31일(토) · 0건"></i><i class="s2" title="11월 1일(일) · 1건"></i></span>
-        <span class="vw">85,622</span>
+        <span class="mx"><span class="mt vw"><b>85,622</b><i>조회수</i></span></span>
       </summary>
       <ul><li><a href="https://www.youtube.com/watch?v=Q9VD8fSaUsI" target="_blank" rel="noopener">신상 먹다가 파산하기 직전💸 10월 마지막 신상 | 고디바찹쌀떡&amp;케이크 볶음너구리&amp;감바스짜파게티 후와후와샌드베이글 와플대학흑깨 허갈피치킨 투썸가나디 연세우유고구마찹쌀떡 편의점신상</a><span class="m"> — 찌콩먹콩 zzicong · 조회수 46,855회 · 11월 1일(일)</span></li><li><a href="https://www.youtube.com/watch?v=v6g08ZUhh8c" target="_blank" rel="noopener">신상 편의점! 너구리 양파링 너구링있어요?</a><span class="m"> — 뭐먹소 eatingstudy · 조회수 37,102회 · 10월 27일(화)</span></li><li><a href="https://www.youtube.com/watch?v=t6CLhvR3kog" target="_blank" rel="noopener">세븐신상 볶음너구리 떴어요ㄷㄷ</a><span class="m"> — 굿띵 · 조회수 1,665회 · 10월 28일(수)</span></li></ul>
     </details>
@@ -150,7 +159,7 @@ color:var(--ink-dim);line-height:1.75}
         <span class="bar" title="3건"><i style="width:100%"></i></span>
         <span class="n">3건</span>
         <span class="strip"><i class="s2" title="10월 26일(월) · 1건"></i><i class="s0" title="10월 27일(화) · 0건"></i><i class="s0" title="10월 28일(수) · 0건"></i><i class="s0" title="10월 29일(목) · 0건"></i><i class="s0" title="10월 30일(금) · 0건"></i><i class="s0" title="10월 31일(토) · 0건"></i><i class="s3" title="11월 1일(일) · 2건"></i></span>
-        <span class="vw">11,519</span>
+        <span class="mx"><span class="mt vw"><b>11,519</b><i>조회수</i></span></span>
       </summary>
       <ul><li><a href="https://www.youtube.com/watch?v=0V8kYFkG2u4" target="_blank" rel="noopener">11월 편의점 신상 역대급 찍었는데 과연..? ㅣ리센느 빵 한정선 찹쌀떡 뽀니X이마트24  태극당 3시15분 밀크티 후와후와 홍만당 안경만두 연세초코맘모스 피자설기 먹방 브이로그</a><span class="m"> — 아정 · 조회수 5,034회 · 11월 1일(일)</span></li><li><a href="https://www.youtube.com/watch?v=tKFN_BRbIPA" target="_blank" rel="noopener">한정선 웨이팅 없이 먹는 방법 | 신상부스 EP.03</a><span class="m"> — THE K-POP · 조회수 3,965회 · 10월 26일(월)</span></li><li><a href="https://www.youtube.com/watch?v=QXM-l8hqB0s" target="_blank" rel="noopener">두쫀꾸 한정선 다 이기고 1등 했다는 대박 디저트</a><span class="m"> — 셀럽로그 · 조회수 2,520회 · 11월 1일(일)</span></li></ul>
     </details>
@@ -162,7 +171,7 @@ color:var(--ink-dim);line-height:1.75}
         <span class="bar" title="2건"><i style="width:67%"></i></span>
         <span class="n">2건</span>
         <span class="strip"><i class="s0" title="10월 26일(월) · 0건"></i><i class="s0" title="10월 27일(화) · 0건"></i><i class="s0" title="10월 28일(수) · 0건"></i><i class="s0" title="10월 29일(목) · 0건"></i><i class="s0" title="10월 30일(금) · 0건"></i><i class="s2" title="10월 31일(토) · 1건"></i><i class="s2" title="11월 1일(일) · 1건"></i></span>
-        <span class="vw">186,362</span>
+        <span class="mx"><span class="mt vw"><b>186,362</b><i>조회수</i></span></span>
       </summary>
       <ul><li><a href="https://www.youtube.com/watch?v=w4LhVD6WCLE" target="_blank" rel="noopener">먹방브이로그) 궁금한거 못참아서 신메뉴 다 먹어봐야하는 다이어터 (탕화쿵푸 토마토마라탕/bhc 알싹킹/마늘빵/빵먹방/푸라닭 홍고추마요+ 까르보불닭/파리바게트 초코츄러스/디저트먹방</a><span class="m"> — 가오니의 메뉴판GAONI · 조회수 184,465회 · 11월 1일(일)</span></li><li><a href="https://www.youtube.com/watch?v=u_mVoQ_csUc" target="_blank" rel="noopener">푸라닭 고추마요가 빨개졌다?! 신메뉴 홍고추마요 치킨 먹어봄🔥</a><span class="m"> — 테이스트모먼트 · 조회수 1,897회 · 10월 31일(토)</span></li></ul>
     </details>
@@ -174,7 +183,7 @@ color:var(--ink-dim);line-height:1.75}
         <span class="bar" title="2건"><i style="width:67%"></i></span>
         <span class="n">2건</span>
         <span class="strip"><i class="s0" title="10월 26일(월) · 0건"></i><i class="s2" title="10월 27일(화) · 1건"></i><i class="s2" title="10월 28일(수) · 1건"></i><i class="s0" title="10월 29일(목) · 0건"></i><i class="s0" title="10월 30일(금) · 0건"></i><i class="s0" title="10월 31일(토) · 0건"></i><i class="s0" title="11월 1일(일) · 0건"></i></span>
-        <span class="vw">93,819</span>
+        <span class="mx"><span class="mt vw"><b>93,819</b><i>조회수</i></span></span>
       </summary>
       <ul><li><a href="https://www.youtube.com/watch?v=eSaWGJmDUeY" target="_blank" rel="noopener">[케인] 빅맥 상위 호환? 맥도날드 신메뉴 빅아치 버거</a><span class="m"> — 케인 TV · 조회수 71,188회 · 10월 28일(수)</span></li><li><a href="https://www.youtube.com/watch?v=GtVtU-lGBUY" target="_blank" rel="noopener">세트배달 15300원?! 맥도날드 신메뉴 빅아치 버거 </a><span class="m"> — 걸뽀 · 조회수 22,631회 · 10월 27일(화)</span></li></ul>
     </details>
@@ -186,7 +195,7 @@ color:var(--ink-dim);line-height:1.75}
         <span class="bar" title="2건"><i style="width:67%"></i></span>
         <span class="n">2건</span>
         <span class="strip"><i class="s0" title="10월 26일(월) · 0건"></i><i class="s0" title="10월 27일(화) · 0건"></i><i class="s0" title="10월 28일(수) · 0건"></i><i class="s2" title="10월 29일(목) · 1건"></i><i class="s2" title="10월 30일(금) · 1건"></i><i class="s0" title="10월 31일(토) · 0건"></i><i class="s0" title="11월 1일(일) · 0건"></i></span>
-        <span class="vw">22,374</span>
+        <span class="mx"><span class="mt vw"><b>22,374</b><i>조회수</i></span></span>
       </summary>
       <ul><li><a href="https://www.youtube.com/watch?v=TyODw41n-9M" target="_blank" rel="noopener">신상 편의점! 닭다리 초콜릿있어요?</a><span class="m"> — 뭐먹소 eatingstudy · 조회수 13,195회 · 10월 30일(금)</span></li><li><a href="https://www.youtube.com/watch?v=BPaQhs4vGes" target="_blank" rel="noopener">고디바 신상!🍫두바이 다크 초콜릿 크레페 케이크 먹방 리얼사운드 GODIVA DARK CHOCOLATE CREPE CAKE DUBAI CHOCOLATE MUKBANG ASMR</a><span class="m"> — 헤이 주디 Hey Judy Eats · 조회수 9,179회 · 10월 29일(목)</span></li></ul>
     </details>
@@ -198,7 +207,7 @@ color:var(--ink-dim);line-height:1.75}
         <span class="bar" title="2건"><i style="width:67%"></i></span>
         <span class="n">2건</span>
         <span class="strip"><i class="s0" title="10월 26일(월) · 0건"></i><i class="s0" title="10월 27일(화) · 0건"></i><i class="s2" title="10월 28일(수) · 1건"></i><i class="s2" title="10월 29일(목) · 1건"></i><i class="s0" title="10월 30일(금) · 0건"></i><i class="s0" title="10월 31일(토) · 0건"></i><i class="s0" title="11월 1일(일) · 0건"></i></span>
-        <span class="vw">18,764</span>
+        <span class="mx"><span class="mt vw"><b>18,764</b><i>조회수</i></span></span>
       </summary>
       <ul><li><a href="https://www.youtube.com/watch?v=A9sjfryvA8g" target="_blank" rel="noopener">맘스터치 신메뉴 후덕죽XO쿵바오세트 통모짜새우버거 먹방 소통방송</a><span class="m"> — 뚠뚠이의일상 · 조회수 10,861회 · 10월 29일(목)</span></li><li><a href="https://www.youtube.com/watch?v=WOlgHknSIAc" target="_blank" rel="noopener">맘스터치 X 후덕죽 셰프님 콜라보 2탄 신메뉴</a><span class="m"> — 나야연수 · 조회수 7,903회 · 10월 28일(수)</span></li></ul>
     </details>
@@ -210,7 +219,7 @@ color:var(--ink-dim);line-height:1.75}
         <span class="bar" title="2건"><i style="width:67%"></i></span>
         <span class="n">2건</span>
         <span class="strip"><i class="s2" title="10월 26일(월) · 1건"></i><i class="s0" title="10월 27일(화) · 0건"></i><i class="s0" title="10월 28일(수) · 0건"></i><i class="s0" title="10월 29일(목) · 0건"></i><i class="s2" title="10월 30일(금) · 1건"></i><i class="s0" title="10월 31일(토) · 0건"></i><i class="s0" title="11월 1일(일) · 0건"></i></span>
-        <span class="vw">4,007</span>
+        <span class="mx"><span class="mt vw"><b>4,007</b><i>조회수</i></span></span>
       </summary>
       <ul><li><a href="https://www.youtube.com/watch?v=6b51Qi2_kkY" target="_blank" rel="noopener">초코 찰떡을 구우면? 진한 초코 가득한 세븐일레븐 신상 구운초코찰떡! 맛은?</a><span class="m"> — 신별 ShinByul · 조회수 2,034회 · 10월 26일(월)</span></li><li><a href="https://www.youtube.com/watch?v=dY9hCEc3-7U" target="_blank" rel="noopener">존맛 초코찰떡 신상 팝업 등장✨</a><span class="m"> — 뚜먹이 ddu.muk2 · 조회수 1,973회 · 10월 30일(금)</span></li></ul>
     </details><p class="legend">하루 게재량 <i></i>없음 <i class="s2"></i>1건 <i class="s3"></i>2건 <i class="s4"></i>3건 이상</p>
@@ -233,7 +242,12 @@ color:var(--ink-dim);line-height:1.75}
   메뉴도 묶입니다. 한 영상은 가장 강한 사건 하나에만 들어갑니다 — 여러 브랜드를 한꺼번에
   나열하는 '이번 주 신상털이' 류 영상이 모든 그룹에 끼어들어 브랜드를 잘못 붙이기 때문입니다.</p>
   <p><b>NEW 표시:</b> 직전 7일과 대조해 그때 없던 메뉴에 NEW를 붙였습니다.</p>
+  <p><b>블로그 열:</b> 네이버 자격증명(NAVER_CLIENT_ID/SECRET)이 없어 이번 집계에서는 뺐습니다. 열이 아예 보이지 않는 것은 0건이라는 뜻이 아닙니다.</p>
+  <p><b>짧은 영상:</b> 길이 60초 이하이거나 제목·설명에
+  #shorts 가 붙은 것을 셉니다. 유튜브가 쇼츠 상한을 3분으로 올린 뒤로 길이만으로는
+  쇼츠인지 증명할 수 없고 API도 /shorts/ 주소를 주지 않아, '쇼츠'라고 단정하지 않고
+  짧은 영상이라고만 적습니다.</p>
   
-  <p>생성 2026-11-02T12:34:30+09:00</p>
+  <p>생성 2026-11-02T13:03:54+09:00</p>
 </details>
 </div></body></html>

@@ -44,6 +44,15 @@ jobs:
       # yt-dlp is only the local/no-key fallback. On GitHub runners YouTube
       # answers per-video requests with "Sign in to confirm you're not a bot"
       # (verified: 40/40 blocked), so CI needs the official API key.
+      # The rule engine proves itself before it is allowed to collect anything.
+      # It needs no network and no key, so there is no reason not to run it —
+      # and a config.json edit that breaks a filter is otherwise invisible
+      # until it reaches the published page.
+      - name: Selftest
+        env:
+          PYTHONIOENCODING: utf-8
+        run: python scripts/selftest.py
+
       - name: Check API key
         run: |
           if [ -z "${{ secrets.YOUTUBE_API_KEY }}" ]; then
@@ -71,6 +80,21 @@ jobs:
           TARGET_DATE: ${{ inputs.target_date }}
           PYTHONIOENCODING: utf-8
         run: python scripts/render.py
+
+      # The weekly page re-counts days that already passed the gate, so it
+      # cannot fail the daily publish. Naver credentials are optional: without
+      # them the mention column is left out and the page says so.
+      - name: Weekly rollup
+        # Must not be able to block the daily publish. This step runs before
+        # the commit, so without continue-on-error a rollup problem would fail
+        # the job and yesterday's verified report would never reach the page.
+        continue-on-error: true
+        env:
+          TARGET_DATE: ${{ inputs.target_date }}
+          NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
+          NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
+          PYTHONIOENCODING: utf-8
+        run: python scripts/rollup.py
 
       - name: Commit and push if changed
         run: |
