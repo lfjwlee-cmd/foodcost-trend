@@ -198,6 +198,9 @@ def group_events(items):
             "channels": len({items[x]["channel"] for x in mine}),
             "days": sorted({items[x]["day"] for x in mine}),
             "views": sum(items[x].get("views") or 0 for x in mine),
+            "likes": sum(
+                items[x]["likes"] for x in mine if isinstance(items[x].get("likes"), int)
+            ),
         })
     events.sort(key=lambda e: (-e["count"], -len(e["days"]), -e["views"]))
     return events, sorted(set(range(len(items))) - taken)
@@ -226,12 +229,12 @@ def prior_grams(days):
 # flipped, or the low steps disappear into the background.
 STYLE = """
 :root{--bg:#faf5ee;--surface:#fff;--surface-2:#f2e9dc;--line:#e6dac8;--ink:#241b12;
---ink-dim:#7a6c58;--accent:#e0451f;--accent-ink:#fff7f0;--gold:#c8860a;
+--ink-dim:#7a6c58;--accent:#e0451f;--accent-ink:#fff7f0;--gold:#c8860a;--ok:#2f7d55;
 --s0:#f0e6d8;--s1:#fbdcc8;--s2:#f5b591;--s3:#ec8152;--s4:#e0451f;
 --s-ink-lo:#3a2a1c;--s-ink-hi:#fff7f0}
 @media (prefers-color-scheme:dark){:root{--bg:#171210;--surface:#211a15;--surface-2:#2a2119;
 --line:#3a2d22;--ink:#f4ebdd;--ink-dim:#a99884;--accent:#ff6a3d;--accent-ink:#1a0f08;
---gold:#f3b632;
+--gold:#f3b632;--ok:#63c294;
 --s0:#2a2119;--s1:#46281c;--s2:#6d3921;--s3:#b04f28;--s4:#ff6a3d;
 --s-ink-lo:#f4ebdd;--s-ink-hi:#1a0f08}}
 *{box-sizing:border-box}
@@ -281,6 +284,7 @@ border-radius:999px;padding:1px 7px;margin-left:6px;vertical-align:2px}
 .ev .mt i{display:block;font-style:normal;font-size:10px;color:var(--ink-dim);font-weight:700}
 .ev .mt.vw b{color:var(--gold)}
 .ev .mt.nv b{color:var(--ink)}
+.ev .mt.rt b{color:var(--ok)}
 .ev .mt.nv b.cap::after{content:"+";font-size:11px}
 .strip{display:flex;gap:2px}
 .strip i{width:15px;height:20px;border-radius:3px;background:var(--s0);display:block}
@@ -363,6 +367,16 @@ def event_rows(events, items, days, new_grams, naver):
             f'{esc(long_label(items[x]["day"]))}</span></li>'
             for x in sorted(e["idx"], key=lambda x: -(items[x].get("views") or 0))
         )
+        # 조회수는 "얼마나 노출됐나"이고 알고리즘과 채널 규모가 대부분을 정한다.
+        # 반응률은 "본 사람 중 몇 %가 반응했나"라서 콘텐츠 자체의 힘에 가깝다.
+        # 실측(최근 14일 140건): 중앙값 0.93%, 하위 10% 0.27%, 상위 10% 2.30% —
+        # 8배가 벌어지므로 줄을 가르는 눈금으로 쓸 만하다.
+        rate = e["likes"] / e["views"] if e["views"] and e["likes"] else None
+        rate_cell = (
+            f'<span class="mt rt"><b>{rate * 100:.1f}%</b><i>반응률</i></span>'
+            if rate
+            else ""
+        )
         nv = (naver or {}).get(event_label(e))
         nv_cell = (
             f'<span class="mt nv"><b class="{"cap" if nv["capped"] else ""}">'
@@ -379,7 +393,7 @@ def event_rows(events, items, days, new_grams, naver):
         <span class="bar" title="{e['count']}건"><i style="width:{width:.0f}%"></i></span>
         <span class="n">{e['count']}건</span>
         <span class="strip">{strip}</span>
-        <span class="mx"><span class="mt vw"><b>{fmt(e['views'])}</b><i>조회수</i></span>{nv_cell}</span>
+        <span class="mx"><span class="mt vw"><b>{fmt(e['views'])}</b><i>조회수</i></span>{rate_cell}{nv_cell}</span>
       </summary>
       <ul>{vids}</ul>
     </details>""")
@@ -428,7 +442,7 @@ def render(items, days, events, solo, skipped, new_grams, prior_days, naver):
         top = events[0]
         name = (top["brand"] + " " if top["brand"] else "") + top["gram"]
         lede = (
-            f'이번 주는 <b>{esc(name)}</b>였습니다 — '
+            f'이번 주 1위는 <b>{esc(name)}</b> — '
             f'{len(top["days"])}일에 걸쳐 {top["channels"]}개 채널이 {top["count"]}건을 올렸습니다.'
         )
     else:
@@ -489,8 +503,9 @@ def render(items, days, events, solo, skipped, new_grams, prior_days, naver):
     )
     if naver is None:
         naver_note = (
-            "네이버 자격증명(NAVER_CLIENT_ID/SECRET)이 없어 이번 집계에서는 뺐습니다. "
-            "열이 아예 보이지 않는 것은 0건이라는 뜻이 아닙니다."
+            "쓰지 않았습니다. 네이버 검색 API는 요금이 붙을 수 있어 기본값은 꺼짐이고, "
+            "이 페이지의 '확산' 축은 키가 필요 없는 반응률이 대신합니다. "
+            "자격증명을 넣으면 열이 추가되지만, 요금 정책은 직접 확인하세요."
         )
     else:
         naver_note = (
@@ -539,6 +554,11 @@ def render(items, days, events, solo, skipped, new_grams, prior_days, naver):
   메뉴도 묶입니다. 한 영상은 가장 강한 사건 하나에만 들어갑니다 — 여러 브랜드를 한꺼번에
   나열하는 '이번 주 신상털이' 류 영상이 모든 그룹에 끼어들어 브랜드를 잘못 붙이기 때문입니다.</p>
   <p><b>NEW 표시:</b> {esc(new_note)}</p>
+  <p><b>반응률:</b> 그 사건에 묶인 영상의 좋아요 합을 조회수 합으로 나눈 값입니다.
+  조회수는 얼마나 노출됐는지를 말하고 알고리즘과 채널 규모가 대부분을 정하는 반면,
+  반응률은 본 사람 중 몇 %가 반응했는지라 콘텐츠 자체에 더 가깝습니다. 최근 14일
+  140건 기준 중앙값 0.93%, 하위 10% 0.27%, 상위 10% 2.30%입니다. 좋아요를 끈
+  영상은 분자에서 빠집니다.</p>
   <p><b>블로그 열:</b> {esc(naver_note)}</p>
   <p><b>짧은 영상:</b> 길이 {CONFIG.get('shortMaxSeconds', 60)}초 이하이거나 제목·설명에
   #shorts 가 붙은 것을 셉니다. 유튜브가 쇼츠 상한을 3분으로 올린 뒤로 길이만으로는

@@ -174,6 +174,20 @@ ev, _ = rollup.group_events(roundup)
 case("모아보기 영상은 한 사건에만 들어간다",
      sum(e["count"] for e in ev) <= len(roundup))
 
+react = [
+    dict(_vid(1, "엽떡 더착한맛", "채널가", "2026-09-16", views=1000), likes=50),
+    dict(_vid(2, "엽떡 더착한맛 리뷰", "채널나", "2026-09-17", views=1000), likes=30),
+]
+ev, _ = rollup.group_events(react)
+case("반응률 — 좋아요를 합산한다", bool(ev) and ev[0]["likes"] == 80)
+
+no_likes = [
+    dict(_vid(1, "엽떡 더착한맛", "채널가", "2026-09-16"), likes=None),
+    dict(_vid(2, "엽떡 더착한맛 리뷰", "채널나", "2026-09-17"), likes=None),
+]
+ev2, _ = rollup.group_events(no_likes)
+case("반응률 — 좋아요가 없어도 터지지 않는다", bool(ev2) and ev2[0]["likes"] == 0)
+
 print("\n7. 네이버 언급량 집계 (네트워크 없이)")
 
 PAGES = {
